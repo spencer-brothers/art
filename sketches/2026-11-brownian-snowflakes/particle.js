@@ -43,12 +43,12 @@ class Particle {
     return closest;
   }
 
-  // Snap this particle so it sits right against `other`, at an angle that is
+  // Snap this particle so its center sits on the edge of `other`, at an angle that is
   // a multiple of PI/3 (0, 60, 120, ... degrees). That puts every particle on
   // a hexagonal (isometric) grid. Tries the angle closest to where the particle
   // actually hit first. Returns false if no spot works.
   snapTo(other, snowflake) {
-    let gap = this.r * 2;   // center-to-center distance when touching
+    let gap = this.r;   // center-to-center distance: one radius, so the circles overlap
     let hitAngle = atan2(this.pos.y - other.pos.y, this.pos.x - other.pos.x);
 
     // The 6 possible spots around `other`
@@ -64,7 +64,7 @@ class Particle {
     spots.sort((s1, s2) => s1.off - s2.off);
 
     for (let spot of spots) {
-      if (inWedge(spot.pos) && !isTaken(spot.pos, snowflake, this.r)) {
+      if (inWedge(spot.pos) && !isTaken(spot.pos, snowflake, gap)) {
         this.pos = spot.pos;
         return true;
       }
@@ -86,9 +86,10 @@ function inWedge(pos) {
 }
 
 // True if a particle in the snowflake is already sitting at `pos`.
-function isTaken(pos, snowflake, r) {
+// `gap` is the grid spacing; anything closer than half of it counts as the same spot.
+function isTaken(pos, snowflake, gap) {
   for (let s of snowflake) {
-    if (dist(s.pos.x, s.pos.y, pos.x, pos.y) < r) return true;
+    if (dist(s.pos.x, s.pos.y, pos.x, pos.y) < gap / 2) return true;
   }
   return false;
 }
