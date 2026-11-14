@@ -6,7 +6,7 @@ This is a work in progress. A proper gallery is on the way. For now, this page l
 
 ## Sketches
 
-- [Brownian Snowflakes](sketches/2026-11-brownian-snowflakes/) (November 2026): a grid of six-sided snowflakes, each growing as particles wander in and stick to it.
+- [Brownian Snowflakes](sketches/2026-11-brownian-snowflakes/) (November 2026): a grid of six-sided snowflakes, each growing as particles wander in and snap into place on a hexagonal grid.
 
 <!-- Add a line for each new sketch, for example:
 - [Flow Field](sketches/2026-11-flow-field/) (November 2026): a short description

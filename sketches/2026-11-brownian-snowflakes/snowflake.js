@@ -33,7 +33,20 @@ class Snowflake {
       return;
     }
 
-    this.particles.push(this.current);
+    let hit = this.current.intersects(this.particles);
+    if (hit) {
+      // Snap onto the hexagonal grid next to the particle it hit.
+      // If there's no free spot, drop this particle and try a new one.
+      if (this.current.snapTo(hit, this.particles)) {
+        this.particles.push(this.current);
+      }
+    } else {
+      // It reached the center without hitting anything (the very first
+      // particle). Put it exactly at the center so the grid starts there.
+      this.current.pos.set(0, 0);
+      this.particles.push(this.current);
+    }
+
     this.current = new Particle(this.radius, 0);
   }
 
