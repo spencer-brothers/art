@@ -5,15 +5,19 @@
 
 class Particle {
 
-  constructor(radius, angle) {
+  // radius, angle: where the particle starts
+  // r: the particle's own radius
+  constructor(radius, angle, r) {
     this.pos = p5.Vector.fromAngle(angle);
     this.pos.mult(radius);
-    this.r = 2;
+    this.r = r;
   }
 
   update() {
-    this.pos.x -= 1;
-    this.pos.y += random(-3, 3);
+    // Step sizes are based on the particle's size (the original used 1 and 3
+    // pixels with a radius of 2), so the wandering looks the same at any scale.
+    this.pos.x -= this.r / 2;
+    this.pos.y += random(-1.5 * this.r, 1.5 * this.r);
 
     let angle = this.pos.heading();
     angle = constrain(angle, 0, PI/6);
@@ -43,12 +47,12 @@ class Particle {
     return closest;
   }
 
-  // Snap this particle so its center sits on the edge of `other`, at an angle that is
+  // Snap this particle so its center is sqrt(3) radii from the center of `other`, at an angle that is
   // a multiple of PI/3 (0, 60, 120, ... degrees). That puts every particle on
   // a hexagonal (isometric) grid. Tries the angle closest to where the particle
   // actually hit first. Returns false if no spot works.
   snapTo(other, snowflake) {
-    let gap = this.r;   // center-to-center distance: one radius, so the circles overlap
+    let gap = this.r * sqrt(3);   // center-to-center distance (about 1.73 radii), so the circles overlap a little
     let hitAngle = atan2(this.pos.y - other.pos.y, this.pos.x - other.pos.x);
 
     // The 6 possible spots around `other`
@@ -73,7 +77,7 @@ class Particle {
   }
 
   finished() {
-    return (this.pos.x < 1);
+    return (this.pos.x < this.r / 2);
   }
 }
 

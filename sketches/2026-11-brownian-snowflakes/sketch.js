@@ -5,18 +5,37 @@
 
 // How many snowflakes fit across the canvas. The number of rows is
 // worked out from this so the grid fills the whole canvas.
-const COLS = 10;
+const COLS = 6;
+
+// Particle radius as a fraction of the snowflake's radius. Because it's a
+// fraction, snowflakes keep the same look and detail when COLS changes.
+const PARTICLE_SCALE = 0.02;
 
 // Colors (hex codes, like in CSS)
 const BACKGROUND = '#ECE4D4';   // linen / oat
 
+// Each color has a weight: how many "tickets" it gets in the random draw.
+// A color with weight 3 is picked three times as often as one with weight 1.
 const PALETTE = [
-  '#94A27F',   // dusty sage
-  '#71815B',   // moss
-  '#52603F',   // deep moss
-  '#9B3A2C',   // brick red
-  '#1C1B19',   // black
+  { color: '#94A27F', weight: 2 },   // dusty sage  (20%)
+  { color: '#71815B', weight: 2 },   // moss        (20%)
+  { color: '#52603F', weight: 2 },   // deep moss   (20%)
+  { color: '#9B3A2C', weight: 3 },   // brick red   (30%)
+  { color: '#1C1B19', weight: 1 },   // black       (10%)
 ];
+
+// Pick a random color from PALETTE, using the weights
+function pickColor() {
+  let total = 0;
+  for (let p of PALETTE) total += p.weight;
+
+  let ticket = random(total);
+  for (let p of PALETTE) {
+    if (ticket < p.weight) return p.color;
+    ticket -= p.weight;
+  }
+  return PALETTE[0].color;   // only reached if there's a rounding hiccup
+}
 
 let snowflakes = [];
 
@@ -46,7 +65,7 @@ function setup() {
       if (x + radius < 0 || x - radius > width) continue;
       if (y + radius < 0 || y - radius > height) continue;
 
-      snowflakes.push(new Snowflake(x, y, radius, random(PALETTE)));
+      snowflakes.push(new Snowflake(x, y, radius, pickColor()));
     }
   }
 }

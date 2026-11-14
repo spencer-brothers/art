@@ -12,9 +12,10 @@ class Snowflake {
     this.x = x;
     this.y = y;
     this.radius = radius;
+    this.particleR = radius * PARTICLE_SCALE;   // particle size grows with the snowflake
     this.color = col;
     this.particles = [];   // particles that have stuck to the snowflake
-    this.current = new Particle(this.radius, 0);
+    this.current = new Particle(this.radius, 0, this.particleR);
     this.done = false;
   }
 
@@ -49,7 +50,7 @@ class Snowflake {
       this.particles.push(this.current);
     }
 
-    this.current = new Particle(this.radius, 0);
+    this.current = new Particle(this.radius, 0, this.particleR);
   }
 
   // Draw all particles 12 times (6 rotations, each mirrored) for symmetry
