@@ -16,6 +16,7 @@ This is a work in progress. A proper gallery is on the way. For now, this page l
 
 - Each piece lives in its own folder under `sketches/` and runs in the browser.
 - Many sketches start from code shared by other artists. Each sketch's own README credits the original author and links to the source and its license.
+- I use AI tools (Claude Code) to help with setup, code changes, and documentation. The artistic direction and choices are my own.
 
 ## License
 
