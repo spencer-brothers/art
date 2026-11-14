@@ -7,9 +7,11 @@
 
 - Updated `index.html` to use p5.js 1.11.1 (the original used 0.7.2), and removed the unused `p5.dom` and `p5.sound` add-ons.
 - Moved the snowflake's growing and drawing code out of `sketch.js` into a new `Snowflake` class in `snowflake.js`, so the sketch can make more than one snowflake.
-- Drew a grid of twelve snowflakes (3 rows by 4 columns) instead of one, each centered in its own cell.
+- Drew a grid of snowflakes instead of one (currently 10 across, set by `COLS` in `sketch.js`).
 - When a wandering particle touches the snowflake, it now snaps into place with its center on the edge of the particle it hit, at a multiple of 60°, so neighboring particles overlap. Every particle sits on a hexagonal (isometric) grid, which gives the snowflakes a fuller, crystal-like look.
 - New color palette: a light linen/oat background, with each snowflake drawn in one solid color picked at random from muted sage and moss greens (mid to dark), brick red, and black. Particles are now fully opaque with no outline.
+- Arranged the snowflakes on an isometric (hexagonal) grid instead of a square one: every other row shifts over by half a space, so each snowflake sits evenly between its neighbors, like a honeycomb.
+- Made the grid run past the edges of the canvas, so the snowflakes along the edges are cut off and the pattern looks like it repeats forever. The number of rows now fills the canvas automatically.
 
 ## License
 
