@@ -9,6 +9,7 @@
 - Moved the snowflake's growing and drawing code out of `sketch.js` into a new `Snowflake` class in `snowflake.js`, so the sketch can make more than one snowflake.
 - Drew a grid of twelve snowflakes (3 rows by 4 columns) instead of one, each centered in its own cell.
 - When a wandering particle touches the snowflake, it now snaps into place next to the particle it hit, at a multiple of 60°. Every particle sits on a hexagonal (isometric) grid, which gives the snowflakes a neater, crystal-like look.
+- New color palette: a light linen/oat background, with each snowflake drawn in one solid color picked at random from muted sage and moss greens (mid to dark), brick red, and black. Particles are now fully opaque with no outline.
 
 ## License
 

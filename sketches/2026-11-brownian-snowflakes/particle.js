@@ -22,9 +22,9 @@ class Particle {
     this.pos.setMag(magnitude);
   }
 
-  show() {
-    fill(100, 200, 255, 150);
-    stroke(255, 150);
+  show(col) {
+    fill(col);       // solid color, no transparency
+    noStroke();
     ellipse(this.pos.x, this.pos.y, this.r * 2);
   }
 

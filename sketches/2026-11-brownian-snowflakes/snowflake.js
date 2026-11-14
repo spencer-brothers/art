@@ -7,10 +7,12 @@ class Snowflake {
 
   // x, y: where the center of the snowflake is drawn on the canvas
   // radius: how far from the center new particles start (the snowflake's max size)
-  constructor(x, y, radius) {
+  // col: the color every particle in this snowflake is drawn with
+  constructor(x, y, radius, col) {
     this.x = x;
     this.y = y;
     this.radius = radius;
+    this.color = col;
     this.particles = [];   // particles that have stuck to the snowflake
     this.current = new Particle(this.radius, 0);
     this.done = false;
@@ -70,9 +72,9 @@ class Snowflake {
   }
 
   showParticles() {
-    this.current.show();
+    this.current.show(this.color);
     for (let p of this.particles) {
-      p.show();
+      p.show(this.color);
     }
   }
 }

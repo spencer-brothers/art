@@ -3,8 +3,19 @@
 // https://thecodingtrain.com/CodingChallenges/127-brownian-snowflake.html
 // https://youtu.be/XUA8UREROYE
 
-const COLS = 4;
-const ROWS = 3;
+const COLS = 10;
+const ROWS = 6;
+
+// Colors (hex codes, like in CSS)
+const BACKGROUND = '#ECE4D4';   // linen / oat
+
+const PALETTE = [
+  '#94A27F',   // dusty sage
+  '#71815B',   // moss
+  '#52603F',   // deep moss
+  '#9B3A2C',   // brick red
+  '#1C1B19',   // black
+];
 
 let snowflakes = [];
 
@@ -22,13 +33,13 @@ function setup() {
     for (let col = 0; col < COLS; col++) {
       let x = col * cellW + cellW / 2;   // center of this cell
       let y = row * cellH + cellH / 2;
-      snowflakes.push(new Snowflake(x, y, radius));
+      snowflakes.push(new Snowflake(x, y, radius, random(PALETTE)));
     }
   }
 }
 
 function draw() {
-  background(0);
+  background(BACKGROUND);
 
   let allDone = true;
   for (let s of snowflakes) {
