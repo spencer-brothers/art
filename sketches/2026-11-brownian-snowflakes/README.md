@@ -6,6 +6,8 @@
 ## My changes
 
 - Updated `index.html` to use p5.js 1.11.1 (the original used 0.7.2), and removed the unused `p5.dom` and `p5.sound` add-ons.
+- Moved the snowflake's growing and drawing code out of `sketch.js` into a new `Snowflake` class in `snowflake.js`, so the sketch can make more than one snowflake.
+- Drew a grid of twelve snowflakes (3 rows by 4 columns) instead of one, each centered in its own cell.
 
 ## License
 
