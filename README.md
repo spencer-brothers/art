@@ -16,5 +16,14 @@ This is a work in progress. A proper gallery is on the way. For now, this page l
 
 - Each piece lives in its own folder under `sketches/` and runs in the browser.
 - Many sketches start from code shared by other artists. Each sketch's own README credits the original author and links to the source and its license.
-- The code and art here are not licensed for reuse unless a sketch's README says otherwise. Please ask if you'd like to use something.
+
+## License
+
+**Code:** my code in this repo is licensed under [Creative Commons Attribution-NonCommercial-ShareAlike 4.0 (CC BY-NC-SA 4.0)](https://creativecommons.org/licenses/by-nc-sa/4.0/). You're welcome to reuse and remix it, as long as you credit me, share your version under the same license, and don't use the code, or anything made with it, commercially. That includes selling prints, NFTs, or other copies of images the code produces.
+
+**Artwork:** the images, renders, and previews in this repo are © Spencer Brothers, all rights reserved. Please don't reuse them without asking.
+
+**Other people's code:** many sketches build on code by other artists. Their parts stay under their original licenses, which each sketch's README lists. Where an original license has stricter terms (for example, share-alike), those terms apply to that sketch.
+
+If you'd like to use something in a way this doesn't cover, please ask.
 
