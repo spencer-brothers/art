@@ -6,9 +6,9 @@ This is a work in progress. A proper gallery is on the way. For now, this page l
 
 ## Sketches
 
-*Coming soon.* The first sketch is in progress.
+- [Brownian Snowflakes](sketches/2026-11-brownian-snowflakes/) (November 2026): a six-sided snowflake that grows as particles wander in and stick to it.
 
-<!-- Add a line for each finished sketch, for example:
+<!-- Add a line for each new sketch, for example:
 - [Flow Field](sketches/2026-11-flow-field/) (November 2026): a short description
 -->
 
