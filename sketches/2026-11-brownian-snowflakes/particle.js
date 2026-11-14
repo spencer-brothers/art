@@ -7,17 +7,20 @@ class Particle {
 
   // radius, angle: where the particle starts
   // r: the particle's own radius
-  constructor(radius, angle, r) {
+  // jitter: how far it jiggles sideways each step, in particle radii
+  constructor(radius, angle, r, jitter) {
     this.pos = p5.Vector.fromAngle(angle);
     this.pos.mult(radius);
     this.r = r;
+    this.jitter = jitter;
   }
 
   update() {
     // Step sizes are based on the particle's size (the original used 1 and 3
     // pixels with a radius of 2), so the wandering looks the same at any scale.
     this.pos.x -= this.r / 2;
-    this.pos.y += random(-1.5 * this.r, 1.5 * this.r);
+    let side = this.jitter * this.r;
+    this.pos.y += random(-side, side);
 
     let angle = this.pos.heading();
     angle = constrain(angle, 0, PI/6);

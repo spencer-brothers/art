@@ -8,14 +8,17 @@ class Snowflake {
   // x, y: where the center of the snowflake is drawn on the canvas
   // radius: how far from the center new particles start (the snowflake's max size)
   // col: the color every particle in this snowflake is drawn with
-  constructor(x, y, radius, col) {
+  // particleScale: particle radius as a fraction of the snowflake's radius
+  // jitter: how far particles jiggle sideways each step, in particle radii
+  constructor(x, y, radius, col, particleScale, jitter) {
     this.x = x;
     this.y = y;
     this.radius = radius;
-    this.particleR = radius * PARTICLE_SCALE;   // particle size grows with the snowflake
+    this.particleR = radius * particleScale;   // particle size grows with the snowflake
+    this.jitter = jitter;
     this.color = col;
     this.particles = [];   // particles that have stuck to the snowflake
-    this.current = new Particle(this.radius, 0, this.particleR);
+    this.current = new Particle(this.radius, 0, this.particleR, this.jitter);
     this.done = false;
   }
 
@@ -50,7 +53,7 @@ class Snowflake {
       this.particles.push(this.current);
     }
 
-    this.current = new Particle(this.radius, 0, this.particleR);
+    this.current = new Particle(this.radius, 0, this.particleR, this.jitter);
   }
 
   // Draw all particles 12 times (6 rotations, each mirrored) for symmetry

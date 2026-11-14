@@ -3,13 +3,23 @@
 // https://thecodingtrain.com/CodingChallenges/127-brownian-snowflake.html
 // https://youtu.be/XUA8UREROYE
 
-// How many snowflakes fit across the canvas. The number of rows is
-// worked out from this so the grid fills the whole canvas.
-const COLS = 6;
+// How many snowflakes fit along the canvas's shorter side: columns
+// across the width if it's a tall canvas, rows down the height if it's
+// a wide one. The grid then keeps going to fill the longer side.
+const GRID_COUNT = 6;
 
 // Particle radius as a fraction of the snowflake's radius. Because it's a
-// fraction, snowflakes keep the same look and detail when COLS changes.
-const PARTICLE_SCALE = 0.02;
+// fraction, snowflakes keep the same look and detail when GRID_COUNT changes.
+// It shrinks from left to right, so snowflakes on the right have smaller
+// particles and more detail.
+const PARTICLE_SCALE_LEFT = 0.035;
+const PARTICLE_SCALE_RIGHT = 0.008;
+
+// How far particles jiggle sideways each step, in particle radii
+// (the original was 1.5). It shrinks from top to bottom, so snowflakes
+// near the bottom wander less and grow straighter, spikier arms.
+const JITTER_TOP = 1.5;
+const JITTER_BOTTOM = 0.5;
 
 // Colors (hex codes, like in CSS)
 const BACKGROUND = '#ECE4D4';   // linen / oat
@@ -45,8 +55,17 @@ function setup() {
   // Isometric (hexagonal) grid: every other row shifts right by half a
   // space, and rows sit closer together (sqrt(3)/2 of the spacing), so
   // each snowflake is the same distance from all six of its neighbors.
-  let spacing = width / COLS;
-  let rowGap = spacing * sqrt(3) / 2;
+  let rowRatio = sqrt(3) / 2;
+  let spacing, rowGap;
+  if (width <= height) {
+    // Tall (or square) canvas: fit GRID_COUNT columns across the width
+    spacing = width / GRID_COUNT;
+    rowGap = spacing * rowRatio;
+  } else {
+    // Wide canvas: fit GRID_COUNT rows down the height
+    rowGap = height / GRID_COUNT;
+    spacing = rowGap / rowRatio;
+  }
 
   // Make each snowflake a bit smaller than the spacing so they don't touch
   let radius = spacing * 0.45;
@@ -58,14 +77,21 @@ function setup() {
     let y = row * rowGap;   // row 0 sits right on the top edge
     let shift = (abs(row) % 2 == 1) ? spacing / 2 : 0;   // odd rows shift right
 
-    for (let col = -1; col <= COLS; col++) {
+    for (let col = -1; col * spacing - radius < width; col++) {
       let x = col * spacing + spacing / 2 + shift;
 
       // Skip snowflakes that would be completely off the canvas
       if (x + radius < 0 || x - radius > width) continue;
       if (y + radius < 0 || y - radius > height) continue;
 
-      snowflakes.push(new Snowflake(x, y, radius, pickColor()));
+      // Blend the settings based on where this snowflake is on the canvas.
+      // constrain() keeps the cut-off edge snowflakes within the range.
+      let across = constrain(x / width, 0, 1);   // 0 = left edge, 1 = right edge
+      let down = constrain(y / height, 0, 1);    // 0 = top edge, 1 = bottom edge
+      let particleScale = lerp(PARTICLE_SCALE_LEFT, PARTICLE_SCALE_RIGHT, across);
+      let jitter = lerp(JITTER_TOP, JITTER_BOTTOM, down);
+
+      snowflakes.push(new Snowflake(x, y, radius, pickColor(), particleScale, jitter));
     }
   }
 }
