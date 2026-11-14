@@ -1,0 +1,9 @@
+# macOS clutter
+.DS_Store
+
+# High-res renders (kept locally, not on GitHub)
+high_res/
+
+# Editor autocomplete files (local only)
+types/
+jsconfig.json
