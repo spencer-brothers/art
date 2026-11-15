@@ -12,7 +12,5 @@ jsconfig.json
 CLAUDE.md
 .claude/
 
-# Output from sketches (data files, exports): every sketch's output/ folder
-# is local only. The empty .gitkeep file is kept so the folder exists.
-**/output/*
-!**/output/.gitkeep
+# Output from sketches (data files, exports): every sketch's output/ folder is local only
+output/
