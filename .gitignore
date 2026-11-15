@@ -11,3 +11,6 @@ jsconfig.json
 # Claude notes (local only)
 CLAUDE.md
 .claude/
+
+# Output from sketches (data files, exports): every sketch's output/ folder is local only
+output/

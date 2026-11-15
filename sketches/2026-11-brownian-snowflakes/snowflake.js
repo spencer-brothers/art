@@ -17,21 +17,31 @@ class Snowflake {
     this.particleR = radius * particleScale;   // particle size grows with the snowflake
     this.jitter = jitter;
     this.color = col;
-    this.particles = [];   // particles that have stuck to the snowflake
+    this.particles = [];   // particles that have stuck to the snowflake (for drawing)
+    // The same particles filed by location, for fast "what's nearby?" checks.
+    // Cells are 2 particle radii wide: the farthest distance we ever check.
+    this.grid = new SpatialGrid(this.particleR * 2);
     this.current = new Particle(this.radius, 0, this.particleR, this.jitter);
     this.done = false;
+
+    // Stats, for the analysis page (the art doesn't use these)
+    this.updates = 0;   // how many times update() ran: frames to finish in the art
+    this.steps = 0;     // total wandering steps taken by all particles
+    this.dropped = 0;   // particles thrown away because they had no free spot
   }
 
   // Let the current particle wander until it hits the edge of the
   // center or sticks to another particle, then start a new one.
   update() {
     if (this.done) return;
+    this.updates++;
 
     let count = 0;
-    while (!this.current.finished() && !this.current.intersects(this.particles)) {
+    while (!this.current.finished() && !this.current.intersects(this.grid)) {
       this.current.update();
       count++;
     }
+    this.steps += count;
 
     // If a particle doesn't move at all, there's no room left: we're done
     if (count == 0) {
@@ -39,21 +49,29 @@ class Snowflake {
       return;
     }
 
-    let hit = this.current.intersects(this.particles);
+    let hit = this.current.intersects(this.grid);
     if (hit) {
       // Snap onto the hexagonal grid next to the particle it hit.
       // If there's no free spot, drop this particle and try a new one.
-      if (this.current.snapTo(hit, this.particles)) {
-        this.particles.push(this.current);
+      if (this.current.snapTo(hit, this.grid)) {
+        this.addParticle(this.current);
+      } else {
+        this.dropped++;
       }
     } else {
       // It reached the center without hitting anything (the very first
       // particle). Put it exactly at the center so the grid starts there.
       this.current.pos.set(0, 0);
-      this.particles.push(this.current);
+      this.addParticle(this.current);
     }
 
     this.current = new Particle(this.radius, 0, this.particleR, this.jitter);
+  }
+
+  // Add a stuck particle to both the drawing list and the spatial grid
+  addParticle(p) {
+    this.particles.push(p);
+    this.grid.add(p);
   }
 
   // Draw all particles 12 times (6 rotations, each mirrored) for symmetry
