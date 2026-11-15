@@ -1,14 +1,125 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Snowflake Data Collection</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Brownian Snowflakes: Parameter Sweep</title>
+
+  <!-- Fonts: Source Serif 4 for text, IBM Plex Mono for numbers and code -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+
   <script src="https://cdn.jsdelivr.net/npm/p5@1.11.1/lib/p5.min.js"></script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="status">Starting…</div>
-  <div id="buttons"></div>
+  <main>
+
+    <header>
+      <h1>Brownian Snowflakes: parameter sweep</h1>
+      <p class="meta">Data collection &middot; <span id="meta-runs"></span> runs &middot; p5.js 1.11.1</p>
+    </header>
+
+    <section>
+      <h2>1. Design</h2>
+      <p>
+        Each run grows one snowflake by diffusion-limited aggregation: particles
+        enter at radius <var>R</var>, drift inward with a random lateral step, and
+        snap onto a hexagonal lattice next to the first particle they touch. Growth
+        stops when a new particle cannot move. Every combination of the two
+        parameters below is grown once per batch, one run at a time, with
+        seed&nbsp;=&nbsp;1000&nbsp;&times;&nbsp;batch&nbsp;+&nbsp;index, so the
+        full dataset is reproducible.
+      </p>
+
+      <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>Parameter</th>
+            <th>Symbol</th>
+            <th class="num">From</th>
+            <th class="num">To</th>
+            <th class="num">Levels</th>
+            <th>Spacing</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Particle scale (<var>r</var>/<var>R</var>)</td>
+            <td><var>s</var></td>
+            <td class="num" id="p-s-from"></td>
+            <td class="num" id="p-s-to"></td>
+            <td class="num" id="p-s-levels"></td>
+            <td>logarithmic</td>
+          </tr>
+          <tr>
+            <td>Lateral jitter (per step, in <var>r</var>)</td>
+            <td><var>j</var></td>
+            <td class="num" id="p-j-from"></td>
+            <td class="num" id="p-j-to"></td>
+            <td class="num" id="p-j-levels"></td>
+            <td>linear</td>
+          </tr>
+          <tr>
+            <td>Batches (seed sets)</td>
+            <td>&mdash;</td>
+            <td class="num">1</td>
+            <td class="num" id="p-b-to"></td>
+            <td class="num" id="p-b-levels"></td>
+            <td>&mdash;</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p class="note">
+        Recorded per run: particle count <var>N</var>, total walk steps, dropped
+        particles, updates, and growth time (ms). Per batch: total particles,
+        wall-clock and compute time.
+      </p>
+      </div>
+    </section>
+
+    <section>
+      <h2>2. Progress</h2>
+      <div class="progress" aria-label="Overall progress">
+        <div class="progress-bar" id="progress-bar"></div>
+      </div>
+      <table class="status">
+        <thead>
+          <tr>
+            <th class="num">Batch</th>
+            <th class="num">Run</th>
+            <th class="num">Completed</th>
+            <th class="num">Elapsed</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="num" id="stat-batch">&ndash;</td>
+            <td class="num" id="stat-run">&ndash;</td>
+            <td class="num" id="stat-done">&ndash;</td>
+            <td class="num" id="stat-elapsed">&ndash;</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="note" id="status-message">Starting&hellip;</p>
+      <div id="buttons"></div>
+    </section>
+
+    <figure>
+      <div id="canvas-holder"></div>
+      <figcaption>
+        <strong>Figure 1.</strong> Final state of every run in the current batch.
+        Columns vary particle scale <var>s</var>, labeled as
+        &minus;log<sub>10</sub>&thinsp;<var>s</var> (evenly spaced; particles get
+        smaller left to right); rows vary jitter <var>j</var> (decreasing top to bottom). All runs
+        are grown at the same <var>R</var> and scaled to fit their cell.
+      </figcaption>
+    </figure>
+
+  </main>
 
   <!-- The real snowflake code, shared with the art -->
   <script src="../2026-11-brownian-snowflakes/spatial-grid.js"></script>

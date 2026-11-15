@@ -1,27 +1,208 @@
+/* Shared by every page in this folder. Plain, paper-like layout. */
+:root {
+  --paper: #FBF9F4;
+  --ink: #1C1B19;
+  --ink-soft: #55524B;
+  --rule: #1C1B19;
+  --rule-light: #CFC8BA;
+  --card: #FFFEFB;
+  --moss: #52603F;
+  --brick: #9B3A2C;
+  --track: #E4DDCF;
+
+  --font-text: "Source Serif 4", Charter, Georgia, serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+
 html, body {
   margin: 0;
   padding: 0;
-  background: #ECE4D4;
-  color: #1C1B19;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-text);
+  font-size: 17px;
+  line-height: 1.55;
 }
 
-#status {
-  padding: 12px 16px 4px;
-  font-size: 14px;
-  white-space: pre-line;
+main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 48px 16px 64px;
 }
+
+/* ---- Headings ---- */
+
+header {
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 12px;
+  margin-bottom: 28px;
+}
+
+h1 {
+  margin: 0 0 4px;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.meta {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+h2 {
+  margin: 36px 0 10px;
+  font-size: 19px;
+  font-weight: 600;
+}
+
+p {
+  margin: 0 0 14px;
+}
+
+var {
+  font-style: italic;
+}
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+
+.note {
+  font-size: 15px;
+  color: var(--ink-soft);
+}
+
+/* ---- Tables: rules above and below, no vertical lines ---- */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 18px 0 14px;
+  font-size: 15px;
+  border-top: 1.5px solid var(--rule);
+  border-bottom: 1.5px solid var(--rule);
+}
+
+thead th {
+  text-align: left;
+  font-weight: 600;
+  padding: 6px 10px 6px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+td {
+  padding: 5px 10px 5px 0;
+}
+
+tbody tr + tr td {
+  border-top: 1px solid var(--rule-light);
+}
+
+.num {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+thead th.num {
+  font-family: var(--font-text);
+}
+
+/* ---- Progress bar ---- */
+
+.progress {
+  height: 8px;
+  background: var(--track);
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 14px 0 4px;
+}
+
+.progress-bar {
+  height: 100%;
+  width: 0%;
+  background: var(--moss);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.progress-bar.done {
+  background: var(--brick);
+}
+
+/* ---- Buttons: filled ---- */
 
 #buttons {
-  padding: 4px 16px 12px;
+  margin: 4px 0 0;
 }
 
-#buttons button {
+button {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--paper);
+  background: var(--moss);
+  border: none;
+  border-radius: 6px;
+  padding: 8px 14px;
   margin-right: 8px;
-  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+button:hover {
+  background: var(--ink);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* ---- Figure ---- */
+
+/* Cards: the design table and the figure (with its caption underneath) */
+.card,
+figure {
+  background: var(--card);
+  border: 1px solid var(--rule-light);
+  border-radius: 10px;
+  padding: 20px 20px 16px;
+}
+
+.card {
+  margin: 18px 0 0;
+}
+
+.card > table:first-child {
+  margin-top: 0;
+}
+
+.card > :last-child {
+  margin-bottom: 0;
+}
+
+figure {
+  margin: 36px 0 0;
 }
 
 canvas {
   display: block;
-  margin: 0 16px 16px;
+  max-width: 100%;
+  height: auto !important;   /* scale down on small screens instead of overflowing */
+}
+
+figcaption {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule-light);
+  font-size: 15px;
+  color: var(--ink-soft);
+}
+
+figcaption strong {
+  color: var(--ink);
 }
