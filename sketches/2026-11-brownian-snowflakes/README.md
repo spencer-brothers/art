@@ -13,6 +13,8 @@
 - Gave each palette color a weight so some show up more than others: brick red is now the most common color (30%), each green is 20%, and black is the rarest (10%).
 - Made the particle size a fraction of the snowflake's size, so snowflakes keep the same look and amount of detail when the grid has more or fewer of them. The particles' wandering steps scale with their size too.
 - Made the snowflakes change across the grid: particles get smaller relative to their snowflake from left to right (`PARTICLE_SCALE_LEFT` and `PARTICLE_SCALE_RIGHT`), and the sideways jiggle of the wandering particles gets smaller from top to bottom (`JITTER_TOP` and `JITTER_BOTTOM`). Snowflakes go from chunky to detailed left to right, and from fuzzy to spiky top to bottom.
+- Sped up growth with a spatial grid (`spatial-grid.js`): each snowflake files its particles by location, so a wandering particle only checks the particles near it instead of every particle in the snowflake. The snowflakes look the same, they just grow faster.
+- Each snowflake now keeps a few stats (update count, total wandering steps, dropped particles) for the analysis page in `sketches/_2026-11-snowflake-analysis/`. The art doesn't use them.
 - Arranged the snowflakes on an isometric (hexagonal) grid instead of a square one: every other row shifts over by half a space, so each snowflake sits evenly between its neighbors, like a honeycomb.
 - Made the grid run past the edges of the canvas, so the snowflakes along the edges are cut off and the pattern looks like it repeats forever. The number of rows now fills the canvas automatically.
 

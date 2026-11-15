@@ -37,24 +37,16 @@ class Particle {
 
   // Returns the closest particle this one is touching, or null if none.
   // (null counts as "false" in an if or while, so this still works as a yes/no check.)
-  intersects(snowflake) {
-    let closest = null;
-    let closestDist = this.r * 2;
-    for (let s of snowflake) {
-      let d = dist(s.pos.x, s.pos.y, this.pos.x, this.pos.y);
-      if (d < closestDist) {
-        closest = s;
-        closestDist = d;
-      }
-    }
-    return closest;
+  // `grid` is the snowflake's SpatialGrid, so only nearby particles are checked.
+  intersects(grid) {
+    return grid.closest(this.pos, this.r * 2);
   }
 
   // Snap this particle so its center is sqrt(3) radii from the center of `other`, at an angle that is
   // a multiple of PI/3 (0, 60, 120, ... degrees). That puts every particle on
   // a hexagonal (isometric) grid. Tries the angle closest to where the particle
   // actually hit first. Returns false if no spot works.
-  snapTo(other, snowflake) {
+  snapTo(other, grid) {
     let gap = this.r * sqrt(3);   // center-to-center distance (about 1.73 radii), so the circles overlap a little
     let hitAngle = atan2(this.pos.y - other.pos.y, this.pos.x - other.pos.x);
 
@@ -71,7 +63,7 @@ class Particle {
     spots.sort((s1, s2) => s1.off - s2.off);
 
     for (let spot of spots) {
-      if (inWedge(spot.pos) && !isTaken(spot.pos, snowflake, gap)) {
+      if (inWedge(spot.pos) && !isTaken(spot.pos, grid, gap)) {
         this.pos = spot.pos;
         return true;
       }
@@ -93,10 +85,7 @@ function inWedge(pos) {
 }
 
 // True if a particle in the snowflake is already sitting at `pos`.
-// `gap` is the grid spacing; anything closer than half of it counts as the same spot.
-function isTaken(pos, snowflake, gap) {
-  for (let s of snowflake) {
-    if (dist(s.pos.x, s.pos.y, pos.x, pos.y) < gap / 2) return true;
-  }
-  return false;
+// `gap` is the hexagonal grid spacing; anything closer than half of it counts as the same spot.
+function isTaken(pos, grid, gap) {
+  return grid.closest(pos, gap / 2) != null;
 }
