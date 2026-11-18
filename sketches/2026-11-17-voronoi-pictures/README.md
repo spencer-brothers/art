@@ -9,6 +9,9 @@ A Voronoi diagram that turns a picture into cells. Seeds are drawn toward the pi
 - **Drag a photo onto the canvas** to use it. It stays in your browser and isn't uploaded.
 - **Space:** debug mode, showing the gray picture and the seed dots.
 - **F:** cycle the cell style: color fill, black lines, grey fill.
+- **V:** record an MP4 video of the whole animation (best for sharing, for example on iMessage: small, smooth, and full color).
+- **G:** record a GIF of the whole animation (bigger files, and GIFs only have 256 colors, so color fills can look grainy).
+- Both restart the current picture, record frame by frame, and download the file when done; move it into the `output/` folder. Recording a big window takes longer, so a smaller browser window helps.
 
 ## Settings
 
@@ -58,6 +61,11 @@ Seeds start evenly spaced with variable-radius Poisson disk sampling: no overlap
 ### Color noise
 - **`colorNoise.amount`**, **`colorNoise.scale`**, **`colorNoise.speed`**: in the fill modes, each cell's color is gently lightened or darkened by Perlin noise at its seed's position, drifting over time, so soft patches of light and shade move slowly across the picture. The noise is 3D (two dimensions for position, one for time), so nearby cells change together and nothing flickers. `amount` is the biggest change, out of 255 (0 = off); a smaller `scale` makes bigger, smoother patches; `speed` is how fast they drift. The shift is the same for red, green, and blue, so colors get lighter or darker without changing hue. Line mode isn't affected.
 
+### Capture
+- **`capture.seconds`**: how long recordings are. Press V for an MP4 or G for a GIF. Either way, the sketch restarts the current picture from the first frame and captures one frame at a time, so the recording plays smoothly however slowly the sketch runs. It records at normal pixel density, so files aren't four times bigger on Retina screens. Browsers can only download files, so recordings land in your downloads folder; move them into `output/` (ignored by git).
+- **`capture.mp4Fps`**, **`capture.mp4Bitrate`**: MP4 frames per second and quality. MP4s are encoded as H.264 with the browser's built-in video encoder (WebCodecs) and packaged with the mp4-muxer library. At 6,000,000 bits per second, 15 seconds is about 11 MB. H.264 needs an even width and height, so an odd-sized canvas loses its last row or column of pixels. Works in Chrome, Edge, and Safari; if the browser can't encode H.264, the console says so.
+- **`capture.gifFps`**: GIF frames per second, using p5's `saveGif()`. The simulation is built for 60 steps per second, so a GIF at 30 fps takes 2 steps per frame and keeps the same timing. GIFs are much bigger than MP4s and only have 256 colors.
+
 ### Display
 - **`display.debugAtStart`**: start in debug mode (gray picture plus seed dots). Space toggles it.
 - **`display.fillModeAtStart`**: starting cell style. 0 = black lines; 1 = each cell filled with the picture's grey at its seed; 2 = filled with the picture's color (no lines in the fill modes). F cycles through them.
@@ -97,12 +105,15 @@ Seeds start evenly spaced with variable-radius Poisson disk sampling: no overlap
 - Seeds no longer have to stop completely: the slowdown now eases down to `settle.floor` (half speed) and stays there, so the cells keep gently moving. The sketch only stops its loop when `settle.floor` is 0.
 - `edges.curve` now also boosts the pull toward edges, not just the bubble sizes, so seeds are drawn to medium edges almost as strongly as to strong ones.
 - Added color noise (`colorNoise`): in the fill modes, cells are gently lightened or darkened by Perlin noise that depends on the seed's position and drifts over time.
+- Added GIF recording: press G to record the whole animation from the start, frame by frame, as a 15-second GIF at 30 fps (`capture`).
+- Added MP4 recording: press V to record the whole animation as a 15-second, 60 fps H.264 video (about 11 MB), frame by frame. Moved the recording code into `capture.js`.
 
 ## Credits
 
 **Libraries** (loaded from the jsDelivr CDN, not copied into this repo):
 - [p5.js](https://p5js.org) v1.11.1, by the Processing Foundation and contributors. LGPL-2.1 license.
 - [d3-delaunay](https://github.com/d3/d3-delaunay) v6.0.4, © 2018–2021 Observable, Inc. ISC license. Computes the Delaunay triangulation and Voronoi diagram. It includes [Delaunator](https://github.com/mapbox/delaunator), © 2021 Mapbox, ISC license.
+- [mp4-muxer](https://github.com/Vanilagy/mp4-muxer) v5.2.2, by Vanilagy. MIT license. Packages the encoded video frames into an MP4 file.
 
 **Algorithms and papers** (implemented from their descriptions; the code is my own):
 - Poisson disk sampling, adapted for variable spacing: Robert Bridson, "Fast Poisson Disk Sampling in Arbitrary Dimensions," ACM SIGGRAPH 2007 Sketches.

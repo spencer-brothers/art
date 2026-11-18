@@ -1,10 +1,11 @@
 // Voronoi pictures: cells small along a picture's edges (or dark areas), big in flat areas.
-// Settings: settings.js (explained in README.md). Simulation: simulation.js. Drawing: render.js.
+// Settings: settings.js (explained in README.md). Simulation: simulation.js. Drawing: render.js. Recording: capture.js.
 
 let photo;      // the photo loaded on start (a p5.Image), or null to use the test image
 let picture;    // the current picture: { gray, color, lab } (see picture.js)
 let field;      // its gradient, brightness, and spacing maps (a GradientField)
 let sim;        // the seed simulation (a Simulation)
+let currentPhoto = null;   // the photo now in use (so recording can restart it), or null for the test image
 let debug = SETTINGS.display.debugAtStart;         // show the picture and seeds (space bar)
 let fillMode = SETTINGS.display.fillModeAtStart;   // 0 lines, 1 grey fill, 2 color fill (F key)
 
@@ -23,7 +24,7 @@ function setup() {
 }
 
 function draw() {
-  sim.step();
+  for (let i = 0; i < stepsPerFrame; i++) sim.step();
 
   background(SETTINGS.display.background);
   if (debug) drawPicture(picture.gray);
@@ -40,6 +41,8 @@ function draw() {
 
 // Start over with a picture (a p5.Image, or null for the test image)
 function startPicture(newPhoto) {
+  currentPhoto = newPhoto;
+
   // Free the previous picture's off-screen canvases
   if (picture) {
     picture.gray.remove();
@@ -77,9 +80,13 @@ function gotFile(file) {
 }
 
 // Space: debug mode on/off. F: cycle the cell style (lines, grey fill, color fill).
+// G: record a GIF. V: record an MP4 video.
 function keyPressed() {
+  if (recording) return;
   if (key === ' ') debug = !debug;
   else if (key === 'f' || key === 'F') fillMode = (fillMode + 1) % 3;
+  else if (key === 'g' || key === 'G') { recordGif(); return false; }
+  else if (key === 'v' || key === 'V') { recordMp4(); return false; }
   else return;
 
   if (!isLooping()) redraw();   // after the sketch has stopped, redraw to show the change

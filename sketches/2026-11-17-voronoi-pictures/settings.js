@@ -64,6 +64,13 @@ const SETTINGS = deepFreeze({
     speed: 0.01,    // how fast the patches drift, per frame
   },
 
+  capture: {
+    seconds: 15,          // recording length (G = GIF, V = MP4)
+    gifFps: 30,           // GIF frames per second (the simulation takes 60/fps steps per frame)
+    mp4Fps: 60,           // MP4 frames per second
+    mp4Bitrate: 6000000,  // MP4 quality, in bits per second (6,000,000 is about 11 MB for 15 seconds)
+  },
+
   display: {
     debugAtStart: false,     // debug mode (picture + seeds) on start; space toggles
     fillModeAtStart: 2,      // 0 lines, 1 grey fill, 2 color fill; F cycles
