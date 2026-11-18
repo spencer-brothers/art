@@ -3,15 +3,23 @@
 // darker areas.
 //
 // Brightness runs from 0 (black) to 1 (white). The gradient is measured in
-// brightness per pixel, using central differences:
-//   gx = (brightness to the right - brightness to the left) / 2
-//   gy = (brightness below - brightness above) / 2
+// brightness per pixel, using a derivative-of-Gaussian kernel: it's the same
+// as blurring the image with a Gaussian of width sigma and then taking the
+// slope, done in one step. Small sigma (about 1) is sharp and local, like a
+// Sobel filter; larger sigma is a low-pass that lets seeds sense features
+// from about 3 x sigma pixels away and softens hard edges into gentle ramps.
 // (p5's y axis points down, so a positive gy means "brighter below".)
+//
+// The 2D kernel is "separable": one horizontal pass and one vertical pass
+// with 1D kernels give the same result as the full 2D kernel, much faster.
+//   gx = vertical Gaussian blur of (horizontal derivative kernel)
+//   gy = vertical derivative kernel of (horizontal Gaussian blur)
 
 class GradientField {
 
   // img: a p5.Image or p5.Graphics with pixelDensity(1)
-  constructor(img) {
+  // sigma: width of the Gaussian, in pixels (how much low-pass smoothing)
+  constructor(img, sigma) {
     this.w = img.width;
     this.h = img.height;
     let n = this.w * this.h;
@@ -23,16 +31,16 @@ class GradientField {
       this.brightness[i] = img.pixels[4 * i] / 255;
     }
 
-    // Gradient of every pixel
-    this.gx = new Float32Array(n);
-    this.gy = new Float32Array(n);
-    for (let y = 0; y < this.h; y++) {
-      for (let x = 0; x < this.w; x++) {
-        let i = y * this.w + x;
-        this.gx[i] = (this.b(x + 1, y) - this.b(x - 1, y)) / 2;
-        this.gy[i] = (this.b(x, y + 1) - this.b(x, y - 1)) / 2;
-      }
-    }
+    // The two 1D kernels
+    let { blur, slope } = gaussianKernels(sigma);
+
+    // Horizontal passes: slope across, and blur across
+    let slopeX = convolve(this.brightness, this.w, this.h, slope, true);
+    let blurX = convolve(this.brightness, this.w, this.h, blur, true);
+
+    // Vertical passes finish the 2D kernels
+    this.gx = convolve(slopeX, this.w, this.h, blur, false);   // slope across, blurred down
+    this.gy = convolve(blurX, this.w, this.h, slope, false);   // blurred across, slope down
 
     // The steepest slope anywhere, handy for scaling arrows
     this.maxMagnitude = 0;
@@ -100,4 +108,57 @@ class GradientField {
       }
     }
   }
+}
+
+// Build the two 1D kernels for a Gaussian of width sigma, reaching out
+// 3 x sigma pixels on each side (past that the weights are tiny).
+// Index k of each array is the weight for the pixel (k - radius) away.
+function gaussianKernels(sigma) {
+  let radius = Math.max(1, Math.ceil(3 * sigma));
+  let size = 2 * radius + 1;
+  let blur = new Float32Array(size);
+  let slope = new Float32Array(size);
+
+  // Blur: a bell curve, scaled so the weights add up to 1 (keeps brightness the same)
+  let total = 0;
+  for (let k = -radius; k <= radius; k++) {
+    blur[k + radius] = Math.exp(-(k * k) / (2 * sigma * sigma));
+    total += blur[k + radius];
+  }
+  for (let i = 0; i < size; i++) blur[i] /= total;
+
+  // Slope: the derivative of the bell curve (weight proportional to k x bell).
+  // Negative on the left, positive on the right, so "brighter to the right"
+  // gives a positive slope. Scaled so a steady ramp of 1 brightness per pixel
+  // comes out as exactly 1.
+  let scale = 0;
+  for (let k = -radius; k <= radius; k++) {
+    slope[k + radius] = k * blur[k + radius];
+    scale += k * slope[k + radius];
+  }
+  for (let i = 0; i < size; i++) slope[i] /= scale;
+
+  return { blur, slope };
+}
+
+// Slide a 1D kernel across every row (horizontal = true) or down every
+// column (horizontal = false) of a w x h image stored as a flat array.
+// Pixels past the edge use the nearest edge pixel.
+function convolve(src, w, h, kernel, horizontal) {
+  let out = new Float32Array(w * h);
+  let radius = (kernel.length - 1) / 2;
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let sum = 0;
+      for (let k = -radius; k <= radius; k++) {
+        let sx = x, sy = y;
+        if (horizontal) sx = Math.min(w - 1, Math.max(0, x + k));
+        else            sy = Math.min(h - 1, Math.max(0, y + k));
+        sum += src[sy * w + sx] * kernel[k + radius];
+      }
+      out[y * w + x] = sum;
+    }
+  }
+  return out;
 }

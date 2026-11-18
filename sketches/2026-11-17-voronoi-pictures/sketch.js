@@ -14,6 +14,10 @@ const MIN_STEP = 0.2;
 
 const IMAGE_OPACITY = 255;  // how strongly the picture shows behind the dots (0 = hidden, 255 = full)
 
+// Gradient smoothing: width of the Gaussian, in pixels. Bigger = more low-pass,
+// so seeds sense features from farther away (about 3 x this many pixels).
+const GRADIENT_SIGMA = 6;
+
 // Gradient arrows (for checking the gradient; they point toward darker areas)
 const SHOW_GRADIENT = true;
 const ARROW_SPACING = 40;      // pixels between arrows
@@ -31,7 +35,7 @@ function setup() {
   createCanvas(windowWidth, windowHeight);
 
   img = makeTestImage(width, height);
-  gradient = new GradientField(img);
+  gradient = new GradientField(img, GRADIENT_SIGMA);
 
   // Place every seed at a random spot on the canvas
   for (let i = 0; i < NUM_SEEDS; i++) {
