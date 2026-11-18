@@ -11,7 +11,9 @@ function preparePicture(photo, autoContrast, clip) {
   let w = width, h = height;
 
   // Color version: white background, photo scaled to fit and centered, so the
-  // whole photo shows and nothing is cropped. Transparent areas end up white.
+  // whole photo shows and nothing is cropped. (The sketch sizes the canvas to
+  // the photo's shape, so it fills the canvas exactly.) Transparent areas end
+  // up white.
   let colorImg = createGraphics(w, h);
   colorImg.pixelDensity(1);
   colorImg.background(255);

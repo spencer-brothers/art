@@ -144,6 +144,15 @@ function startPicture(newPhoto) {
   if (img) img.remove();
   if (colorImg) colorImg.remove();
 
+  // Canvas size: a photo gets a canvas in its own shape, as big as fits in the
+  // window (so there are no empty bars); the test image fills the window
+  if (newPhoto) {
+    let s = min(windowWidth / newPhoto.width, windowHeight / newPhoto.height);
+    resizeCanvas(floor(newPhoto.width * s), floor(newPhoto.height * s));
+  } else {
+    resizeCanvas(windowWidth, windowHeight);
+  }
+
   let picture = preparePicture(newPhoto, AUTO_CONTRAST && newPhoto !== null, CONTRAST_CLIP);
   img = picture.gray;
   colorImg = picture.color;
