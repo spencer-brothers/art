@@ -2,7 +2,59 @@
 
 - Based on: original code, written from scratch.
 - Library: [d3-delaunay](https://github.com/d3/d3-delaunay) v6.0.4 (ISC license, © Observable, Inc. and Mapbox) computes the Voronoi diagram.
-- Technique (planned): seeds move toward darker parts of a picture by gradient descent on the image's brightness, possibly with a low-pass (smoothed) gradient, so the Voronoi cells are smaller where the picture is darker.
+- Technique: seeds move toward darker parts of a picture by gradient descent on its (smoothed) brightness and push on each other like a gas, so the Voronoi cells are smaller where the picture is darker.
+
+## Controls
+
+- **Drag a photo onto the canvas** to use it. It stays in your browser and isn't uploaded.
+- **Space:** debug mode, showing the gray picture and the seed dots.
+- **F:** cycle the cell style: color fill, black lines, grey fill.
+
+## Settings
+
+All settings are at the top of `sketch.js`. "Brightness" below means the picture's unblurred brightness at a spot, from 0 (black) to 1 (white).
+
+### Picture
+- **`PHOTO_PATH`**: the photo loaded on start, from the `private/` folder. That folder is ignored by git, so personal photos never go online. If the file isn't there (as on the website), the sketch uses a generated test image.
+- **`AUTO_CONTRAST`**: stretch the photo's brightness so its darkest part becomes black and its brightest becomes white. Many photos are mostly mid-grey, and this makes their features read much better.
+- **`CONTRAST_CLIP`**: when stretching, ignore this fraction of the darkest and brightest pixels, so a few stray pixels don't decide the range.
+
+### Seeds
+- **`USE_POISSON`**: `true` places the starting seeds with variable-radius Poisson disk sampling: evenly spaced, no overlapping bubbles, already dense in dark areas and spread out in light ones. It places as many as fit. `false` places them at pure random spots.
+- **`FILL`**: random start only. The sketch estimates how many seeds the picture can hold (each pixel holds 1 / (2√3 · r²) of a seed, where r is its bubble size, scaled by 0.92 for natural packing) and uses this fraction of that.
+- **`MAX_SEEDS`**: a safety limit, so a very dark picture can't create so many seeds that the sketch slows to a crawl.
+- **`DOT_RADIUS`**: size of the seed dots in debug mode.
+
+### Personal bubbles
+- **`BUBBLE_MIN`**, **`BUBBLE_MAX`**: each seed keeps other seeds out of a circle around it, with a radius from `BUBBLE_MIN` on black up to `BUBBLE_MAX` on white. Two seeds stay at least the sum of their radii apart, so seeds pack tightly (small cells) in dark areas and spread out (big cells) in light ones. Smaller bubbles mean more seeds and finer detail.
+- **`SHOW_BUBBLES`**: draw each bubble as a faint circle, for tuning.
+
+### Gas pressure
+- **`REPULSION_RANGE`**: seeds gently push on neighbors that are near but not touching, like gas pressure, so they spread out to fill empty space. Two seeds push each other when they're closer than this many times the sum of their bubbles.
+- **`REPULSION_STRENGTH`**: the push when two seeds are right on top of each other, in pixels per frame. It fades in a straight line to zero at the edge of the range. Bigger bubbles (light areas) reach farther, so light areas push harder.
+- **`DARK_PUSH`**: dark seeds resist being pushed. The push a seed receives is scaled from 1 on white down to this on black, so seeds on thin dark lines stay on them instead of being shoved off by light-area neighbors.
+
+### Collisions and friction
+- **`COLLISION_PASSES`**: after moving, seeds whose bubbles overlap are pushed apart until they just touch. Fixing one pair can push a seed into another, so this runs a few passes per frame. More passes untangle crowded spots better but cost more.
+- **`DARK_MOBILITY`**: friction in dark areas. After moving and colliding, a seed only goes part of the way to its new spot: all the way on white, this fraction on black. It calms the jitter in dark clusters, where the gradient pulls seeds in and collisions push them back out.
+
+### Settling
+- **`SETTLE_START`**, **`SETTLE_FRAMES`**: after `SETTLE_START` frames, friction gradually increases everywhere over `SETTLE_FRAMES` more frames (with a smooth ease) until the seeds stop. The sketch then stops at frame `SETTLE_START + SETTLE_FRAMES`, a clean end point for recordings. At 60 frames per second, 900 frames is 15 seconds. Timing is counted in frames, so a frame-by-frame recording always plays the same.
+
+### Gradient descent
+- **`LEARNING_RATE`**: each frame, a seed steps downhill (toward darker areas) by the gradient times this many pixels.
+- **`MAX_STEP`**, **`MIN_STEP`**: the downhill step is capped by brightness, from `MAX_STEP` pixels on white down to `MIN_STEP` on black, so seeds slow down as they reach dark areas and steep edges don't fling them.
+- **`MOMENTUM`**: each frame a seed keeps this fraction of its last velocity, so it builds speed down long slopes (0 = none; near 1 = slides and overshoots). Its velocity is the distance it actually moved, so speed lost to collisions and friction is lost from its momentum too.
+- **`MAX_SPEED`**: speed cap, in pixels per frame.
+- **`GRADIENT_SIGMA`**: how much the gradient is blurred (the width of the Gaussian, in pixels). The gradient is computed with a derivative-of-Gaussian kernel, which blurs and takes the slope in one step. Bigger values let seeds sense dark features from farther away (about 3 × sigma) and soften hard edges, but take longer to compute when a picture loads.
+
+### Display
+- **`DEBUG_AT_START`**: start in debug mode (gray picture plus seed dots). Space toggles it.
+- **`FILL_MODE_AT_START`**: starting cell style. 0 = black lines; 1 = each cell filled with the picture's grey at its seed; 2 = filled with the picture's color (no lines in the fill modes). F cycles through them.
+- **`IMAGE_OPACITY`**: how strongly the picture shows in debug mode (0 = hidden, 255 = full).
+- **`CELL_LINE_COLOR`**: color of the cell lines.
+- **`LINE_TO_BUBBLE`**: cell line thickness as a multiple of `BUBBLE_MIN`, so lines scale with the smallest cells (`CELL_LINE_WEIGHT` is the result in pixels).
+- **`BACKGROUND`**, **`BRICK`**: the linen background and the brick red of the seed dots.
 
 ## My changes
 

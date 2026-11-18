@@ -1,108 +1,51 @@
-// Voronoi pictures: a Voronoi diagram with small cells where a picture is
-// dark and large cells where it's light. Seeds move downhill on the picture's
-// brightness (gradient descent), push on each other like a gas, and settle.
+// Voronoi pictures: small cells where a picture is dark, big where it's light (settings explained in README.md)
 
-// The picture. On start, the sketch tries to load PHOTO_PATH from the private/
-// folder (ignored by git, so it never goes online). If it isn't there, as on
-// the website, it uses the generated test image. Drag any photo onto the
-// canvas to use it instead: it stays in the browser and isn't uploaded.
-const PHOTO_PATH = 'private/photo.jpeg';
-const AUTO_CONTRAST = true;     // stretch the photo's brightness to the full black-to-white range
-const CONTRAST_CLIP = 0.01;     // ignore the darkest and brightest 1% of pixels when stretching
+// Picture
+const PHOTO_PATH = 'private/photo.jpeg';  // photo loaded on start (private/ is never committed)
+const AUTO_CONTRAST = true;               // stretch photo brightness to full black-to-white
+const CONTRAST_CLIP = 0.01;               // fraction of darkest/brightest pixels ignored when stretching
 
-// How many seeds: worked out from the picture (see seedCapacity below).
-// FILL is how full to make it: 1 = as many seeds as the bubbles can fit,
-// 0.8 = 80% of that, leaving a little room so seeds can settle without jamming.
-// MAX_SEEDS is a safety limit for very dark pictures, to keep things fast.
-const FILL = 0.8;
-const MAX_SEEDS = 15000;
+// Seeds
+const USE_POISSON = true;   // evenly spaced start (true) or pure random (false)
+const FILL = 0.8;           // random start only: fraction of seed capacity to use
+const MAX_SEEDS = 15000;    // safety limit on seed count
+const DOT_RADIUS = 2.5;     // seed dot size in debug mode
 
-// Starting layout. true: Poisson disk sampling (poisson-disk.js), which places
-// seeds evenly with no overlapping bubbles, already dense in dark areas and
-// spread out in light ones; it places as many as fit (FILL isn't used).
-// false: pure random positions, FILL x capacity of them.
-const USE_POISSON = true;
-const DOT_RADIUS = 2.5;   // size of the dot drawn for each seed
+// Personal bubbles
+const BUBBLE_MIN = 1.5;       // bubble radius on black
+const BUBBLE_MAX = 9;         // bubble radius on white
+const SHOW_BUBBLES = false;   // draw bubbles as faint circles
 
-// Personal bubble: each seed keeps other seeds out of a circle around it.
-// Its radius depends on the brightness where the seed is: BUBBLE_MIN on
-// black, up to BUBBLE_MAX on white. Two seeds stay at least the sum of their
-// bubble radii apart, so seeds pack tightly in dark areas and spread out in
-// light ones.
-const BUBBLE_MIN = 1.5;
-const BUBBLE_MAX = 9;
-const SHOW_BUBBLES = false;   // draw each bubble as a faint circle (for tuning)
+// Gas pressure
+const REPULSION_RANGE = 2;      // push reach, as a multiple of two seeds' bubble sum
+const REPULSION_STRENGTH = 0.3; // push at zero distance, in pixels per frame
+const DARK_PUSH = 0.1;          // fraction of push a seed on black receives
 
-// Gas model: seeds gently push on neighbors that are near but not touching,
-// like gas pressure, so they spread out to fill empty space. Two seeds push
-// each other when they're closer than REPULSION_RANGE x the sum of their
-// bubbles; the push is REPULSION_STRENGTH pixels per frame when they're right
-// on top of each other and fades to zero at the edge of the range. Bigger
-// bubbles (light areas) reach farther, so light areas push seeds apart more.
-const REPULSION_RANGE = 2;
-const REPULSION_STRENGTH = 0.3;
+// Collisions and friction
+const COLLISION_PASSES = 3;   // overlap-fixing passes per frame
+const DARK_MOBILITY = 0.2;    // fraction of its move a seed on black makes
 
-// Dark seeds resist being pushed: the push a seed receives is scaled by the
-// brightness where it is, from 1 on white down to DARK_PUSH on black. Seeds
-// that find a dark line stay on it instead of being shoved off by neighbors in
-// the light (whose bigger bubbles reach farther). Light seeds still get pushed
-// away from dark ones as usual.
-const DARK_PUSH = 0.1;
+// Settling
+const SETTLE_START = 120;    // frame when the slowdown starts
+const SETTLE_FRAMES = 780;   // frames the slowdown lasts (then the sketch stops)
 
-// Collisions: after moving, overlapping seeds are pushed apart this many times
-// per frame (more passes untangle crowded spots better, but cost more)
-const COLLISION_PASSES = 3;
+// Gradient descent
+const LEARNING_RATE = 50;   // step size per unit of gradient
+const MAX_STEP = 2;         // step cap on white, in pixels
+const MIN_STEP = 0.2;       // step cap on black, in pixels
+const MOMENTUM = 0.6;       // fraction of last frame's velocity kept
+const MAX_SPEED = 4;        // speed cap, in pixels per frame
+const GRADIENT_SIGMA = 20;  // gradient blur (Gaussian width), in pixels
 
-// Friction in dark areas: after moving and colliding, each seed only goes part
-// of the way to its new spot. On white it goes all the way (1); on black only
-// DARK_MOBILITY of the way. This calms the jitter in dark clusters, where the
-// gradient pulls seeds in and collisions push them back out every frame.
-const DARK_MOBILITY = 0.2;
-
-// Settling: after SETTLE_START frames, friction gradually increases everywhere
-// over SETTLE_FRAMES more frames (with a smooth ease), until the seeds stop
-// moving and the picture holds still. At 60 frames per second, 300 frames is
-// 5 seconds. Once everything has settled, the sketch stops: the last frame is
-// frame SETTLE_START + SETTLE_FRAMES, a clean end point for recordings. (The
-// key toggles still work after it stops; they redraw that last frame.)
-const SETTLE_START = 120;
-const SETTLE_FRAMES = 780;
-
-// Gradient descent: each frame, every seed steps downhill (toward darker areas)
-// by gradient x LEARNING_RATE pixels. The step is capped by how bright the spot
-// is: up to MAX_STEP pixels on white, down to MIN_STEP pixels on black, so
-// seeds slow down as they reach dark areas.
-const LEARNING_RATE = 50;
-const MAX_STEP = 2;
-const MIN_STEP = 0.2;
-
-// Momentum: each frame a seed keeps this fraction of its last velocity, so it
-// builds speed going down long slopes (0 = none; near 1 = slides and overshoots).
-// Its speed is capped at MAX_SPEED pixels per frame.
-const MOMENTUM = 0.6;
-const MAX_SPEED = 4;
-
-const IMAGE_OPACITY = 255;  // how strongly the picture shows in debug mode (0 = hidden, 255 = full)
-
-// Debug mode shows the picture (in gray) and the seed dots. Press the space bar
-// to turn it on and off.
-const DEBUG_AT_START = false;
-
-// How cells are drawn. Press F to cycle: 0 = black lines, 1 = each cell filled
-// with the picture's grey at its seed, 2 = filled with the picture's color.
-const FILL_MODE_AT_START = 2;
-
-// Gradient smoothing: width of the Gaussian, in pixels. Bigger = more low-pass,
-// so seeds sense features from farther away (about 3 x this many pixels).
-const GRADIENT_SIGMA = 20;
-
-// Voronoi cells: drawn as lines around each seed's cell
-const CELL_LINE_COLOR = '#000000';   // black
-const LINE_TO_BUBBLE = 2;   // line thickness as a fraction of the smallest bubble (BUBBLE_MIN)
+// Display
+const DEBUG_AT_START = false;    // debug mode (picture + seeds) on start; space toggles
+const FILL_MODE_AT_START = 2;    // 0 lines, 1 grey fill, 2 color fill; F cycles
+const IMAGE_OPACITY = 255;       // picture opacity in debug mode (0-255)
+const CELL_LINE_COLOR = '#000000';                      // cell line color
+const LINE_TO_BUBBLE = 2;                               // line thickness as a multiple of BUBBLE_MIN
 const CELL_LINE_WEIGHT = LINE_TO_BUBBLE * BUBBLE_MIN;   // line thickness in pixels
-
-const BACKGROUND = '#ECE4D4';   // linen
-const BRICK = '#9B3A2C';        // brick red, for the seeds (shows on both black and white)
+const BACKGROUND = '#ECE4D4';    // linen
+const BRICK = '#9B3A2C';         // brick red, for seed dots
 
 let seeds = [];
 let numSeeds;   // worked out from the picture
