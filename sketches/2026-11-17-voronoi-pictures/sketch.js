@@ -1,7 +1,14 @@
 // Voronoi pictures: a Voronoi diagram with small cells where a picture is
-// dark and large cells where it's light. So far: a test image, its brightness
-// gradient, and seeds that move downhill on it (gradient descent) without
-// overlapping each other.
+// dark and large cells where it's light. Seeds move downhill on the picture's
+// brightness (gradient descent), push on each other like a gas, and settle.
+
+// The picture. On start, the sketch tries to load PHOTO_PATH from the private/
+// folder (ignored by git, so it never goes online). If it isn't there, as on
+// the website, it uses the generated test image. Drag any photo onto the
+// canvas to use it instead: it stays in the browser and isn't uploaded.
+const PHOTO_PATH = 'private/photo.jpg';
+const AUTO_CONTRAST = true;     // stretch the photo's brightness to the full black-to-white range
+const CONTRAST_CLIP = 0.01;     // ignore the darkest and brightest 1% of pixels when stretching
 
 // How many seeds: worked out from the picture (see seedCapacity below).
 // FILL is how full to make it: 1 = as many seeds as the bubbles can fit,
@@ -22,7 +29,7 @@ const DOT_RADIUS = 2.5;   // size of the dot drawn for each seed
 // black, up to BUBBLE_MAX on white. Two seeds stay at least the sum of their
 // bubble radii apart, so seeds pack tightly in dark areas and spread out in
 // light ones.
-const BUBBLE_MIN = 2;
+const BUBBLE_MIN = 1.5;
 const BUBBLE_MAX = 9;
 const SHOW_BUBBLES = false;   // draw each bubble as a faint circle (for tuning)
 
@@ -55,10 +62,11 @@ const DARK_MOBILITY = 0.2;
 // Settling: after SETTLE_START frames, friction gradually increases everywhere
 // over SETTLE_FRAMES more frames (with a smooth ease), until the seeds stop
 // moving and the picture holds still. At 60 frames per second, 300 frames is
-// 5 seconds. Once everything has settled, the seeds stop being updated, which
-// saves work (drawing and the key toggles still work).
-const SETTLE_START = 300;
-const SETTLE_FRAMES = 600;
+// 5 seconds. Once everything has settled, the sketch stops: the last frame is
+// frame SETTLE_START + SETTLE_FRAMES, a clean end point for recordings. (The
+// key toggles still work after it stops; they redraw that last frame.)
+const SETTLE_START = 120;
+const SETTLE_FRAMES = 780;
 
 // Gradient descent: each frame, every seed steps downhill (toward darker areas)
 // by gradient x LEARNING_RATE pixels. The step is capped by how bright the spot
@@ -76,17 +84,17 @@ const MAX_SPEED = 4;
 
 const IMAGE_OPACITY = 255;  // how strongly the picture shows in debug mode (0 = hidden, 255 = full)
 
-// Debug mode shows the test image and the seed dots. Press the space bar to
-// turn it on and off.
+// Debug mode shows the picture (in gray) and the seed dots. Press the space bar
+// to turn it on and off.
 const DEBUG_AT_START = false;
 
-// Fill mode: each cell is filled with the picture's grey at its seed. Press F
-// to turn it on and off.
-const FILL_AT_START = false;
+// How cells are drawn. Press F to cycle: 0 = black lines, 1 = each cell filled
+// with the picture's grey at its seed, 2 = filled with the picture's color.
+const FILL_MODE_AT_START = 2;
 
 // Gradient smoothing: width of the Gaussian, in pixels. Bigger = more low-pass,
 // so seeds sense features from farther away (about 3 x this many pixels).
-const GRADIENT_SIGMA = 50;
+const GRADIENT_SIGMA = 20;
 
 // Voronoi cells: drawn as lines around each seed's cell
 const CELL_LINE_COLOR = '#000000';   // black
@@ -97,20 +105,58 @@ const BACKGROUND = '#ECE4D4';   // linen
 const BRICK = '#9B3A2C';        // brick red, for the seeds (shows on both black and white)
 
 let seeds = [];
-let numSeeds;   // worked out in setup() from the picture
-let debug = DEBUG_AT_START;   // debug mode: show the picture and seeds (toggled with the space bar)
-let fillCells = FILL_AT_START;   // fill mode: cells filled with their seed's grey (toggled with F)
+let numSeeds;   // worked out from the picture
+let debug = DEBUG_AT_START;        // debug mode: show the picture and seeds (space bar)
+let fillMode = FILL_MODE_AT_START; // 0 lines, 1 grey fill, 2 color fill (F key)
 let grid;       // spatial grid for finding nearby seeds quickly
-let img;        // the picture the seeds will follow (a generated test image for now)
+let photo;      // the loaded photo (a p5.Image), or null to use the test image
+let img;        // the picture the seeds follow, in gray (canvas-sized)
+let colorImg;   // the same picture in color, for color fill mode
 let gradient;   // the picture's brightness gradient (a GradientField)
+let simFrame = 0;   // frames since the current picture started (for settling)
+
+function preload() {
+  // Try the private photo; if it's missing, carry on with the test image
+  photo = loadImage(PHOTO_PATH, () => {}, () => {
+    photo = null;
+    console.log(`No ${PHOTO_PATH} found, using the test image`);
+  });
+}
 
 function setup() {
-  createCanvas(windowWidth, windowHeight);
-
-  img = makeTestImage(width, height);
-  gradient = new GradientField(img, GRADIENT_SIGMA);
+  let canvas = createCanvas(windowWidth, windowHeight);
+  canvas.drop(gotFile);   // drag a photo onto the canvas to use it
   grid = new SpatialGrid(2 * BUBBLE_MAX);   // cells as wide as the farthest two bubbles can reach
+  startPicture(photo);
+}
 
+// A file was dropped on the canvas: if it's an image, start over with it
+function gotFile(file) {
+  if (file.type !== 'image') return;
+  loadImage(file.data, dropped => startPicture(dropped));
+}
+
+// Set everything up for a picture (a p5.Image, or null for the test image):
+// prepare its gray and color versions and gradient, place fresh seeds, and
+// start the animation from the beginning
+function startPicture(newPhoto) {
+  // Free the previous picture's off-screen canvases
+  if (img) img.remove();
+  if (colorImg) colorImg.remove();
+
+  let picture = preparePicture(newPhoto, AUTO_CONTRAST && newPhoto !== null, CONTRAST_CLIP);
+  img = picture.gray;
+  colorImg = picture.color;
+  gradient = new GradientField(img, GRADIENT_SIGMA);
+
+  seeds = [];
+  placeSeeds();
+
+  simFrame = 0;
+  loop();   // restart the animation if it had stopped
+}
+
+function placeSeeds() {
   let capacity = seedCapacity(gradient);
 
   if (USE_POISSON) {
@@ -144,7 +190,8 @@ function draw() {
 
   // Settling: how much the seeds can still move, from 1 (freely) down to 0
   // (settled), easing smoothly from SETTLE_START over SETTLE_FRAMES
-  let t = constrain((frameCount - SETTLE_START) / SETTLE_FRAMES, 0, 1);
+  simFrame++;
+  let t = constrain((simFrame - SETTLE_START) / SETTLE_FRAMES, 0, 1);
   let settle = 1 - t * t * (3 - 2 * t);
   if (settle > 0) updateSeeds(settle);
 
@@ -165,6 +212,12 @@ function draw() {
     for (let s of seeds) {
       s.show();
     }
+  }
+
+  // Stop condition: once everything has settled, stop the animation loop
+  if (settle === 0 && isLooping()) {
+    noLoop();
+    console.log(`Settled and stopped at frame ${simFrame}`);
   }
 }
 
@@ -208,19 +261,27 @@ function updateSeeds(settle) {
 // d3-delaunay works it out from the seeds' Delaunay triangulation, clipped to
 // the canvas, and render() traces every cell edge (shared edges only once)
 // onto p5's canvas, using the stroke color and weight set just before.
-// In fill mode, each cell is filled with the picture's grey at its seed
-// instead, with no lines.
+// In fill modes, each cell is filled instead, with no lines: with the
+// picture's grey at its seed (mode 1) or its color (mode 2).
 function drawVoronoi() {
   let delaunay = d3.Delaunay.from(seeds, s => s.pos.x, s => s.pos.y);
   let voronoi = delaunay.voronoi([0, 0, width, height]);
 
-  if (fillCells) {
+  if (fillMode > 0) {
     for (let i = 0; i < seeds.length; i++) {
       let cell = voronoi.cellPolygon(i);   // the cell's corners, as [x, y] pairs
       if (!cell) continue;
 
-      let grey = round(255 * gradient.brightnessAt(seeds[i].pos.x, seeds[i].pos.y));
-      drawingContext.fillStyle = `rgb(${grey}, ${grey}, ${grey})`;
+      let x = seeds[i].pos.x, y = seeds[i].pos.y;
+      if (fillMode === 1) {
+        let grey = round(255 * gradient.brightnessAt(x, y));
+        drawingContext.fillStyle = `rgb(${grey}, ${grey}, ${grey})`;
+      } else {
+        // Color of the nearest pixel in the color picture
+        let i4 = 4 * (constrain(round(y), 0, height - 1) * width + constrain(round(x), 0, width - 1));
+        let px = colorImg.pixels;
+        drawingContext.fillStyle = `rgb(${px[i4]}, ${px[i4 + 1]}, ${px[i4 + 2]})`;
+      }
       drawingContext.beginPath();
       drawingContext.moveTo(cell[0][0], cell[0][1]);
       for (let j = 1; j < cell.length; j++) drawingContext.lineTo(cell[j][0], cell[j][1]);
@@ -343,13 +404,16 @@ function resolveCollisions() {
   }
 }
 
-// Space bar: turn debug mode (picture + seeds) on and off. F: turn fill mode on and off.
+// Space bar: turn debug mode (picture + seeds) on and off.
+// F: cycle the cell style (lines, grey fill, color fill).
 function keyPressed() {
   if (key === ' ') {
     debug = !debug;
+    if (!isLooping()) redraw();   // after the sketch has stopped, redraw to show the change
     return false;   // stop the browser from scrolling the page
   }
   if (key === 'f' || key === 'F') {
-    fillCells = !fillCells;
+    fillMode = (fillMode + 1) % 3;
+    if (!isLooping()) redraw();
   }
 }
