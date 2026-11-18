@@ -7,28 +7,52 @@ class Simulation {
   constructor(field) {
     this.field = field;
     this.grid = new SpatialGrid(2 * SETTINGS.bubbles.max);   // cells as wide as the farthest two bubbles can reach
-    this.seeds = [];
-    this.frame = 0;   // frames since this picture started
+    this.seeds = [];     // seeds in play
+    this.pending = [];   // seeds held back, added gradually
+    this.frame = 0;      // frames since this picture started
     this.placeSeeds();
   }
 
-  // Start the seeds evenly spaced (Poisson disk sampling), each spaced by its
-  // full bubble size where it lands
+  // Lay out the full set of seeds evenly spaced (Poisson disk sampling), each
+  // spaced by its full bubble size where it lands. Shuffle them, then start
+  // with seeds.startFraction of them and hold the rest back for addSeeds().
   placeSeeds() {
     let { min, max } = SETTINGS.bubbles;
     let bubbleAt = (x, y) => lerp(min, max, this.field.spacingAt(x, y));
     let points = poissonDisk(width, height, bubbleAt, min, max).slice(0, SETTINGS.seeds.max);
-    this.seeds = points.map((p, i) => new Seed(p.x, p.y, i));
-    console.log(`Placed ${this.seeds.length} seeds`);
+    let all = shuffle(points.map((p, i) => new Seed(p.x, p.y, i)));   // shuffled, so the held-back ones are spread everywhere
+
+    this.total = all.length;
+    this.startCount = round(SETTINGS.seeds.startFraction * this.total);
+    this.seeds = all.slice(0, this.startCount);
+    this.pending = all.slice(this.startCount);
+    console.log(`Placed ${this.total} seeds, starting with ${this.startCount}`);
+  }
+
+  // Release held-back seeds at their original spots, a few each frame, so
+  // the count rises steadily from startCount to the total between
+  // seeds.addStart and seeds.addEnd
+  addSeeds() {
+    if (this.pending.length === 0) return;
+    let { addStart, addEnd } = SETTINGS.seeds;
+    let t = constrain((this.frame - addStart) / max(1, addEnd - addStart), 0, 1);
+    let target = round(lerp(this.startCount, this.total, t));
+    while (this.seeds.length < target && this.pending.length > 0) {
+      this.seeds.push(this.pending.pop());
+    }
   }
 
   // How much the seeds can still move: 1 (freely) until settle.start, then
-  // easing smoothly down to 0 (settled) over settle.frames
+  // easing smoothly down to settle.floor over settle.frames, and staying there
   settleAmount() {
-    let t = constrain((this.frame - SETTINGS.settle.start) / SETTINGS.settle.frames, 0, 1);
-    return 1 - t * t * (3 - 2 * t);
+    let { start, frames, floor } = SETTINGS.settle;
+    let t = constrain((this.frame - start) / frames, 0, 1);
+    let ease = t * t * (3 - 2 * t);
+    return lerp(1, floor, ease);
   }
 
+  // True once the slowdown is over and the seeds have stopped completely
+  // (only happens when settle.floor is 0)
   get settled() {
     return this.settleAmount() === 0;
   }
@@ -36,6 +60,7 @@ class Simulation {
   // Advance one frame
   step() {
     this.frame++;
+    this.addSeeds();
     let settle = this.settleAmount();
     if (settle > 0) this.move(settle);
   }

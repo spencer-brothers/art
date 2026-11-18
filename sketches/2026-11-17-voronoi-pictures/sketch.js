@@ -28,7 +28,7 @@ function draw() {
   background(SETTINGS.display.background);
   if (debug) drawPicture(picture.gray);
   if (SETTINGS.bubbles.show) drawBubbles(sim.seeds);
-  drawCells(sim.seeds, field, picture.color, fillMode);
+  drawCells(sim.seeds, field, picture.color, fillMode, sim.frame);
   if (debug) drawSeeds(sim.seeds);
 
   // Once everything has settled, stop: a clean end frame for recordings
@@ -64,6 +64,7 @@ function startPicture(newPhoto) {
     lab: e.color ? picture.lab : null,
     edgeOffset: e.offset,
     edgeRepel: e.repel,
+    edgeCurve: e.curve,
   });
   sim = new Simulation(field);
   loop();   // restart the animation if it had stopped

@@ -22,6 +22,7 @@ All settings are in `settings.js`, in one read-only `SETTINGS` object grouped li
 ### Seeds
 Seeds start evenly spaced with variable-radius Poisson disk sampling: no overlapping bubbles, each spaced by its bubble size where it lands, so they begin close to where they'll settle. It places as many as fit.
 - **`seeds.max`**: a safety limit, so a very dark picture can't create so many seeds that the sketch slows to a crawl.
+- **`seeds.startFraction`**, **`seeds.addStart`**, **`seeds.addEnd`**: the full evenly spaced set of seeds is laid out at the start, shuffled, and only `startFraction` of them are put in play. The rest are held back and released at their original spots a few at a time, so the count rises steadily from frame `addStart` to frame `addEnd`. The fast early phase has fewer seeds to push around, and the extra seeds fill in detail once the layout has taken shape. Keep `addEnd` well before the end of the settle so the last seeds have time to settle too. 1 = all seeds from the start.
 - **`seeds.dotRadius`**: size of the seed dots in debug mode.
 
 ### Personal bubbles
@@ -38,7 +39,7 @@ Seeds start evenly spaced with variable-radius Poisson disk sampling: no overlap
 - **`collisions.tightMobility`**: friction where seeds pack tightest. After moving and colliding, a seed only goes part of the way to its new spot: all the way where seeds spread out, this fraction where they pack tightest. It calms jitter in tight clusters and holds seeds on edges.
 
 ### Settling
-- **`settle.start`**, **`settle.frames`**: after `settle.start` frames, friction gradually increases everywhere over `settle.frames` more frames (with a smooth ease) until the seeds stop. The sketch then stops at frame `SETTLE_START + SETTLE_FRAMES`, a clean end point for recordings. At 60 frames per second, 900 frames is 15 seconds. Timing is counted in frames, so a frame-by-frame recording always plays the same.
+- **`settle.start`**, **`settle.frames`**, **`settle.floor`**: after `settle.start` frames, friction gradually increases everywhere over `settle.frames` more frames (with a smooth ease), until seeds can only move `settle.floor` as much as at the start (0.5 = half). After that it stays there, so seeds keep gently moving and adjusting. With `settle.floor = 0`, seeds stop completely and the sketch stops at frame `settle.start + settle.frames`, a clean end point for recordings; either way, that frame (900 at the current settings, 15 seconds at 60 frames per second) is when the slowdown ends. Timing is counted in frames, so a frame-by-frame recording always plays the same.
 
 ### Gradient descent
 - **`descent.learningRate`**: each frame, a seed steps downhill (toward darker areas) by the gradient times this many pixels.
@@ -52,6 +53,10 @@ Seeds start evenly spaced with variable-radius Poisson disk sampling: no overlap
 - **`edges.sigma`**: edges mode only. How much the picture is blurred when finding edges, in pixels. Small values keep edges sharp and thin; bigger values merge nearby edges and ignore fine texture.
 - **`edges.color`**: edges mode only. `true` finds edges from **color**, not just brightness, so a boundary between two colors of the same brightness (a red shirt against a green wall) still counts as an edge. The photo's colors are converted to CIELAB, where equal distances look about equally different to the eye, and edge strength is Di Zenzo's multi-channel gradient: each pixel's color is treated as a vector (L\*, a\*, b\*), and edge strength is how fast that vector changes in the direction where it changes fastest. `false` uses brightness only. The test image has no color, so this only makes a difference with photos.
 - **`edges.offset`**, **`edges.repel`**: edges mode only. A Voronoi cell border always runs halfway between two seeds, so seeds sitting *on* an edge make the cells zigzag across it. Instead, seeds are pushed off the edge line itself (a short-range push from the edge-strength map blurred by `edges.offset`, scaled to match the long-range pull, times `edges.repel`) while still being pulled toward edges from far away. The two balance about `edges.offset` pixels to each side, so seeds settle in two rows with the edge between them, and the Voronoi borders between the rows fall along the edge. The tight-packing zone (small bubbles, friction, push resistance) becomes that band beside the edge. `EDGE_REPEL = 0` puts seeds back on the edges. Works best when `edges.sigma` is small (about 2–3), so edges are thin.
+- **`edges.curve`**: edges mode only. How much medium edges count, compared with the strongest ones. Edge strength is boosted to 1 − (1 − strength) raised to this power: flat areas stay 0 and the strongest edges stay 1, but medium edges rise toward 1 (at 3, an edge at 30% strength counts as about 66%). Everything in edges mode uses the boosted strength: the pull toward edges, the two-row push, bubble sizes, friction, and push resistance. So medium edges attract seeds, get small cells, and hold their seeds almost like strong edges. 1 = straight line (only strong edges stand out).
+
+### Color noise
+- **`colorNoise.amount`**, **`colorNoise.scale`**, **`colorNoise.speed`**: in the fill modes, each cell's color is gently lightened or darkened by Perlin noise at its seed's position, drifting over time, so soft patches of light and shade move slowly across the picture. The noise is 3D (two dimensions for position, one for time), so nearby cells change together and nothing flickers. `amount` is the biggest change, out of 255 (0 = off); a smaller `scale` makes bigger, smoother patches; `speed` is how fast they drift. The shift is the same for red, green, and blue, so colors get lighter or darker without changing hue. Line mode isn't affected.
 
 ### Display
 - **`display.debugAtStart`**: start in debug mode (gray picture plus seed dots). Space toggles it.
@@ -87,6 +92,11 @@ Seeds start evenly spaced with variable-radius Poisson disk sampling: no overlap
 - Seeds now settle beside edges instead of on them (`EDGE_OFFSET`, `EDGE_REPEL`): a short-range push off the edge line balances the long-range pull toward edges, so seeds line up in two rows and the Voronoi cell borders between them follow the edge, instead of cells zigzagging across it. The cells are still strict Voronoi polygons.
 - Moved every setting into `settings.js`: one read-only `SETTINGS` object, grouped (picture, seeds, bubbles, gas, collisions, settle, descent, edges, display). Settings were renamed to match, for example `BUBBLE_MIN` is now `SETTINGS.bubbles.min`; earlier bullets above use the old names.
 - Cleaned up the code: `sketch.js` is now just the overview (load, set up, each frame step and draw, keys and dropped photos). The seed simulation moved to a `Simulation` class (`simulation.js`), and all drawing to `render.js`. Removed unused code: the gradient arrows, the pure-random start (`seeds.usePoisson`, `seeds.fill`), and the seed-capacity estimate. The sketch looks and behaves the same.
+- Added `edges.curve`, so medium edges get smaller bubbles too (spacing is (1 − edge strength) raised to the curve's power), not just the strongest edges.
+- Seeds are added gradually: the sketch starts with a fraction of them (`seeds.startFraction`, now 1/5) and releases the rest at their original evenly spaced spots between frames `seeds.addStart` and `seeds.addEnd`.
+- Seeds no longer have to stop completely: the slowdown now eases down to `settle.floor` (half speed) and stays there, so the cells keep gently moving. The sketch only stops its loop when `settle.floor` is 0.
+- `edges.curve` now also boosts the pull toward edges, not just the bubble sizes, so seeds are drawn to medium edges almost as strongly as to strong ones.
+- Added color noise (`colorNoise`): in the fill modes, cells are gently lightened or darkened by Perlin noise that depends on the seed's position and drifts over time.
 
 ## Credits
 
@@ -98,6 +108,7 @@ Seeds start evenly spaced with variable-radius Poisson disk sampling: no overlap
 - Poisson disk sampling, adapted for variable spacing: Robert Bridson, "Fast Poisson Disk Sampling in Arbitrary Dimensions," ACM SIGGRAPH 2007 Sketches.
 - Color gradient (structure tensor): Silvano Di Zenzo, "A note on the gradient of a multi-image," *Computer Vision, Graphics, and Image Processing* 33(1), 116–125, 1986.
 - Voronoi diagrams: Georgy Voronoi, 1908.
+- Perlin noise (through p5.js's `noise()`): Ken Perlin, "An Image Synthesizer," SIGGRAPH 1985.
 
 **Color standards:**
 - Brightness from color uses the Rec. 709 luminance weights (ITU-R Recommendation BT.709).

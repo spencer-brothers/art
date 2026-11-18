@@ -11,11 +11,14 @@ const SETTINGS = deepFreeze({
 
   seeds: {
     max: 15000,         // safety limit on seed count
+    startFraction: 0.2, // fraction of seeds placed at the start; the rest are added gradually
+    addStart: 0,        // frame when the held-back seeds start being added
+    addEnd: 510,        // frame when all seeds have been added
     dotRadius: 2.5,     // seed dot size in debug mode
   },
 
   bubbles: {
-    min: 1,         // bubble radius where seeds pack tightest (dark, or beside edges)
+    min: 0.75,      // bubble radius where seeds pack tightest (dark, or beside edges)
     max: 9,         // bubble radius where seeds spread out most (light, or flat)
     show: false,    // draw bubbles as faint circles
   },
@@ -33,7 +36,8 @@ const SETTINGS = deepFreeze({
 
   settle: {
     start: 120,    // frame when the slowdown starts
-    frames: 780,   // frames the slowdown lasts (then the sketch stops)
+    frames: 780,   // frames the slowdown lasts
+    floor: 0.5,    // how much seeds can still move after the slowdown (0 = stop completely, and the sketch stops)
   },
 
   descent: {
@@ -51,6 +55,13 @@ const SETTINGS = deepFreeze({
     color: true,        // find edges from color (true) or brightness only (false)
     offset: 3,          // about how far beside an edge seeds settle, in pixels
     repel: 1,           // how strongly seeds are pushed off the edge line (0 = off)
+    curve: 3,           // how much medium edges count (1 = straight line; higher = medium edges pull and pack more)
+  },
+
+  colorNoise: {
+    amount: 10,     // max lighten/darken of fill colors, out of 255 (0 = off)
+    scale: 0.01,    // patch size: smaller = bigger, smoother patches
+    speed: 0.01,    // how fast the patches drift, per frame
   },
 
   display: {

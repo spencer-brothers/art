@@ -6,7 +6,9 @@
 //   fillMode 0: black lines (render() traces every edge once)
 //   fillMode 1: each cell filled with the picture's grey at its seed
 //   fillMode 2: each cell filled with the picture's color at its seed
-function drawCells(seeds, field, colorImg, fillMode) {
+// In the fill modes, each cell's color is gently lightened or darkened by
+// Perlin noise at its seed's position, drifting over time (frame).
+function drawCells(seeds, field, colorImg, fillMode, frame) {
   let delaunay = d3.Delaunay.from(seeds, s => s.pos.x, s => s.pos.y);
   let voronoi = delaunay.voronoi([0, 0, width, height]);
 
@@ -25,7 +27,9 @@ function drawCells(seeds, field, colorImg, fillMode) {
     if (!cell) continue;
 
     let { x, y } = seeds[i].pos;
-    drawingContext.fillStyle = fillMode === 1 ? greyAt(field, x, y) : colorAt(colorImg, x, y);
+    let rgb = fillMode === 1 ? greyAt(field, x, y) : colorAt(colorImg, x, y);
+    let shift = noiseShift(x, y, frame);
+    drawingContext.fillStyle = `rgb(${rgb.map(c => constrain(round(c + shift), 0, 255)).join(', ')})`;
     drawingContext.beginPath();
     drawingContext.moveTo(cell[0][0], cell[0][1]);
     for (let j = 1; j < cell.length; j++) drawingContext.lineTo(cell[j][0], cell[j][1]);
@@ -33,17 +37,26 @@ function drawCells(seeds, field, colorImg, fillMode) {
   }
 }
 
-// The picture's grey at (x, y), as a CSS color
+// The picture's grey at (x, y), as [r, g, b]
 function greyAt(field, x, y) {
-  let g = round(255 * field.brightnessAt(x, y));
-  return `rgb(${g}, ${g}, ${g})`;
+  let g = 255 * field.brightnessAt(x, y);
+  return [g, g, g];
 }
 
-// The color of the nearest pixel in the color picture, as a CSS color
+// The color of the nearest pixel in the color picture, as [r, g, b]
 function colorAt(colorImg, x, y) {
   let i = 4 * (constrain(round(y), 0, height - 1) * width + constrain(round(x), 0, width - 1));
   let px = colorImg.pixels;
-  return `rgb(${px[i]}, ${px[i + 1]}, ${px[i + 2]})`;
+  return [px[i], px[i + 1], px[i + 2]];
+}
+
+// How much to lighten (+) or darken (-) a cell at (x, y): 3D Perlin noise, two
+// dimensions for position and one for time, so nearby cells change together
+// and the patches drift smoothly. Between -amount and +amount.
+function noiseShift(x, y, frame) {
+  let { amount, scale, speed } = SETTINGS.colorNoise;
+  if (amount === 0) return 0;
+  return (noise(x * scale, y * scale, frame * speed) - 0.5) * 2 * amount;
 }
 
 // Debug: the gray picture behind everything

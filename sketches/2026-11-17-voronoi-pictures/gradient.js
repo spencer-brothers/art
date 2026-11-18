@@ -38,7 +38,10 @@ class GradientField {
   //   lab:        edges mode: CIELAB channels { L, a, b } for color edges, or null
   //   edgeOffset: edges mode: about how far beside an edge seeds settle (0 = on it)
   //   edgeRepel:  edges mode: how strongly seeds are pushed off the edge line
-  constructor(img, { sigma, mode = 'dark', edgeSigma = 2, lab = null, edgeOffset = 0, edgeRepel = 0 }) {
+  //   edgeCurve:  edges mode: edge strength becomes 1 - (1 - strength) ^ edgeCurve,
+  //               so values above 1 make medium edges pull seeds and get small
+  //               bubbles almost like strong ones
+  constructor(img, { sigma, mode = 'dark', edgeSigma = 2, lab = null, edgeOffset = 0, edgeRepel = 0, edgeCurve = 1 }) {
     this.w = img.width;
     this.h = img.height;
     let n = this.w * this.h;
@@ -59,6 +62,14 @@ class GradientField {
       for (let i = 0; i < n; i++) strongest = Math.max(strongest, this.edgeStrength[i]);
       if (strongest > 0) {
         for (let i = 0; i < n; i++) this.edgeStrength[i] /= strongest;
+      }
+
+      // Boost medium edges: 1 - (1 - strength) ^ edgeCurve. Flat stays 0 and
+      // the strongest edge stays 1, but medium edges rise toward 1 (at a curve
+      // of 3, an edge at 0.3 becomes about 0.66), so they pull seeds and get
+      // small bubbles almost like strong ones. Everything below uses this.
+      if (edgeCurve !== 1) {
+        for (let i = 0; i < n; i++) this.edgeStrength[i] = 1 - Math.pow(1 - this.edgeStrength[i], edgeCurve);
       }
 
       // Far pull: slope of edge strength (blurred by sigma), flipped. Seeds move
@@ -97,7 +108,7 @@ class GradientField {
       let band = edgeOffset > 0 ? gaussianBlur(this.edgeStrength, this.w, this.h, edgeOffset) : this.edgeStrength;
       let strongest = 0;
       for (let i = 0; i < n; i++) strongest = Math.max(strongest, band[i]);
-      this.spacing = band.map(e => 1 - e / Math.max(strongest, 1e-12));
+      this.spacing = band.map(e => 1 - e / Math.max(strongest, 1e-12));   // (the curve is already in edgeStrength)
     } else {
       this.spacing = this.brightness;
     }
