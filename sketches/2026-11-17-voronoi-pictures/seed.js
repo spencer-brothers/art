@@ -4,8 +4,12 @@
 class Seed {
 
   // x, y: where the seed sits on the canvas
-  constructor(x, y) {
+  // id: this seed's number (used to handle each pair of seeds only once)
+  constructor(x, y, id) {
     this.pos = createVector(x, y);
+    this.id = id;
+    this.bubble = 0;   // personal-space radius, set each frame from the brightness
+    this.prev = createVector(x, y);   // where the seed was at the start of the frame
   }
 
   // One step of gradient descent: move downhill on the picture's brightness
@@ -21,8 +25,10 @@ class Seed {
     let brightness = field.brightnessAt(this.pos.x, this.pos.y);
     step.limit(lerp(minStep, maxStep, brightness));
     this.pos.add(step);
+    this.stayOnCanvas();
+  }
 
-    // Stay on the canvas
+  stayOnCanvas() {
     this.pos.x = constrain(this.pos.x, 0, width - 1);
     this.pos.y = constrain(this.pos.y, 0, height - 1);
   }
