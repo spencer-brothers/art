@@ -14,11 +14,11 @@ class Seed {
     this.push = createVector(0, 0);   // total repulsion from neighbors this frame
   }
 
-  // One step of gradient descent with momentum: move downhill on the
-  // picture's brightness (toward darker areas), like a ball rolling downhill.
+  // One step of gradient descent with momentum: move toward -gradient (toward
+  // dark areas, or toward edges in edges mode), like a ball rolling downhill.
   // The downhill step is the gradient times learningRate, capped so steep
-  // edges don't fling the seed. The cap depends on brightness: maxStep on
-  // white, minStep on black. The seed keeps `momentum` of last frame's
+  // edges don't fling the seed. The cap depends on the spacing map: maxStep
+  // where seeds spread out, minStep where they pack tightest. The seed keeps `momentum` of last frame's
   // velocity and adds this step to it, so it picks up speed on long slopes;
   // its speed is capped at maxSpeed. The repulsion from neighbors (this.push,
   // worked out beforehand) is added too. Every frame takes the same kind of step
@@ -28,8 +28,8 @@ class Seed {
     let step = field.gradientAt(this.pos.x, this.pos.y);
     step.mult(-learningRate);   // minus: downhill, toward darker
 
-    let brightness = field.brightnessAt(this.pos.x, this.pos.y);
-    step.limit(lerp(minStep, maxStep, brightness));
+    let spacing = field.spacingAt(this.pos.x, this.pos.y);   // 0 where seeds pack tightest
+    step.limit(lerp(minStep, maxStep, spacing));
 
     this.vel.mult(momentum);
     this.vel.add(step);

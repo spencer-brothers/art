@@ -1,8 +1,8 @@
 # Voronoi Pictures
 
-- Based on: original code, written from scratch.
-- Library: [d3-delaunay](https://github.com/d3/d3-delaunay) v6.0.4 (ISC license, © Observable, Inc. and Mapbox) computes the Voronoi diagram.
-- Technique: seeds move toward darker parts of a picture by gradient descent on its (smoothed) brightness and push on each other like a gas, so the Voronoi cells are smaller where the picture is darker.
+A Voronoi diagram that turns a picture into cells. Seeds are drawn toward the picture's edges (or its dark areas), push on each other like a gas, and settle, so the cells are small along outlines and big in flat areas.
+
+- Based on: original code, written from scratch. Libraries, papers, and standards it uses are listed under [Credits](#credits).
 
 ## Controls
 
@@ -12,49 +12,54 @@
 
 ## Settings
 
-All settings are at the top of `sketch.js`. "Brightness" below means the picture's unblurred brightness at a spot, from 0 (black) to 1 (white).
+All settings are in `settings.js`, in one read-only `SETTINGS` object grouped like the sections below (for example, `bubbles.min` is `SETTINGS.bubbles.min`). "Brightness" below means the picture's unblurred brightness at a spot, from 0 (black) to 1 (white). "Where seeds pack tightest" means dark areas in dark mode and strong edges in edges mode.
 
 ### Picture
-- **`PHOTO_PATH`**: the photo loaded on start, from the `private/` folder. That folder is ignored by git, so personal photos never go online. If the file isn't there (as on the website), the sketch uses a generated test image.
-- **`AUTO_CONTRAST`**: stretch the photo's brightness so its darkest part becomes black and its brightest becomes white. Many photos are mostly mid-grey, and this makes their features read much better.
-- **`CONTRAST_CLIP`**: when stretching, ignore this fraction of the darkest and brightest pixels, so a few stray pixels don't decide the range.
+- **`picture.photoPath`**: the photo loaded on start, from the `private/` folder. That folder is ignored by git, so personal photos never go online. If the file isn't there (as on the website), the sketch uses a generated test image.
+- **`picture.autoContrast`**: stretch the photo's brightness so its darkest part becomes black and its brightest becomes white. Many photos are mostly mid-grey, and this makes their features read much better.
+- **`picture.contrastClip`**: when stretching, ignore this fraction of the darkest and brightest pixels, so a few stray pixels don't decide the range.
 
 ### Seeds
-- **`USE_POISSON`**: `true` places the starting seeds with variable-radius Poisson disk sampling: evenly spaced, no overlapping bubbles, already dense in dark areas and spread out in light ones. It places as many as fit. `false` places them at pure random spots.
-- **`FILL`**: random start only. The sketch estimates how many seeds the picture can hold (each pixel holds 1 / (2√3 · r²) of a seed, where r is its bubble size, scaled by 0.92 for natural packing) and uses this fraction of that.
-- **`MAX_SEEDS`**: a safety limit, so a very dark picture can't create so many seeds that the sketch slows to a crawl.
-- **`DOT_RADIUS`**: size of the seed dots in debug mode.
+Seeds start evenly spaced with variable-radius Poisson disk sampling: no overlapping bubbles, each spaced by its bubble size where it lands, so they begin close to where they'll settle. It places as many as fit.
+- **`seeds.max`**: a safety limit, so a very dark picture can't create so many seeds that the sketch slows to a crawl.
+- **`seeds.dotRadius`**: size of the seed dots in debug mode.
 
 ### Personal bubbles
-- **`BUBBLE_MIN`**, **`BUBBLE_MAX`**: each seed keeps other seeds out of a circle around it, with a radius from `BUBBLE_MIN` on black up to `BUBBLE_MAX` on white. Two seeds stay at least the sum of their radii apart, so seeds pack tightly (small cells) in dark areas and spread out (big cells) in light ones. Smaller bubbles mean more seeds and finer detail.
-- **`SHOW_BUBBLES`**: draw each bubble as a faint circle, for tuning.
+- **`bubbles.min`**, **`bubbles.max`**: each seed keeps other seeds out of a circle around it. Two seeds stay at least the sum of their radii apart. In dark mode, the radius runs from `bubbles.min` on black up to `bubbles.max` on white, so seeds pack tightly (small cells) in dark areas. In edges mode, it runs from `bubbles.min` on the strongest edges up to `bubbles.max` in flat areas (light or dark), so seeds pack tightly along outlines. The Poisson start and the seed count follow the bubble sizes. Smaller bubbles mean more seeds and finer detail.
+- **`bubbles.show`**: draw each bubble as a faint circle, for tuning.
 
 ### Gas pressure
-- **`REPULSION_RANGE`**: seeds gently push on neighbors that are near but not touching, like gas pressure, so they spread out to fill empty space. Two seeds push each other when they're closer than this many times the sum of their bubbles.
-- **`REPULSION_STRENGTH`**: the push when two seeds are right on top of each other, in pixels per frame. It fades in a straight line to zero at the edge of the range. Bigger bubbles (light areas) reach farther, so light areas push harder.
-- **`DARK_PUSH`**: dark seeds resist being pushed. The push a seed receives is scaled from 1 on white down to this on black, so seeds on thin dark lines stay on them instead of being shoved off by light-area neighbors.
+- **`gas.range`**: seeds gently push on neighbors that are near but not touching, like gas pressure, so they spread out to fill empty space. Two seeds push each other when they're closer than this many times the sum of their bubbles.
+- **`gas.strength`**: the push when two seeds are right on top of each other, in pixels per frame. It fades in a straight line to zero at the edge of the range. Bigger bubbles (light areas) reach farther, so light areas push harder.
+- **`gas.tightPush`**: seeds resist being pushed where they pack tightest (dark areas in dark mode, strong edges in edges mode). The push a seed receives is scaled from 1 where seeds spread out down to this where they pack tightest, so seeds on thin dark lines or edges stay on them instead of being shoved off by neighbors with bigger bubbles.
 
 ### Collisions and friction
-- **`COLLISION_PASSES`**: after moving, seeds whose bubbles overlap are pushed apart until they just touch. Fixing one pair can push a seed into another, so this runs a few passes per frame. More passes untangle crowded spots better but cost more.
-- **`DARK_MOBILITY`**: friction in dark areas. After moving and colliding, a seed only goes part of the way to its new spot: all the way on white, this fraction on black. It calms the jitter in dark clusters, where the gradient pulls seeds in and collisions push them back out.
+- **`collisions.passes`**: after moving, seeds whose bubbles overlap are pushed apart until they just touch. Fixing one pair can push a seed into another, so this runs a few passes per frame. More passes untangle crowded spots better but cost more.
+- **`collisions.tightMobility`**: friction where seeds pack tightest. After moving and colliding, a seed only goes part of the way to its new spot: all the way where seeds spread out, this fraction where they pack tightest. It calms jitter in tight clusters and holds seeds on edges.
 
 ### Settling
-- **`SETTLE_START`**, **`SETTLE_FRAMES`**: after `SETTLE_START` frames, friction gradually increases everywhere over `SETTLE_FRAMES` more frames (with a smooth ease) until the seeds stop. The sketch then stops at frame `SETTLE_START + SETTLE_FRAMES`, a clean end point for recordings. At 60 frames per second, 900 frames is 15 seconds. Timing is counted in frames, so a frame-by-frame recording always plays the same.
+- **`settle.start`**, **`settle.frames`**: after `settle.start` frames, friction gradually increases everywhere over `settle.frames` more frames (with a smooth ease) until the seeds stop. The sketch then stops at frame `SETTLE_START + SETTLE_FRAMES`, a clean end point for recordings. At 60 frames per second, 900 frames is 15 seconds. Timing is counted in frames, so a frame-by-frame recording always plays the same.
 
 ### Gradient descent
-- **`LEARNING_RATE`**: each frame, a seed steps downhill (toward darker areas) by the gradient times this many pixels.
-- **`MAX_STEP`**, **`MIN_STEP`**: the downhill step is capped by brightness, from `MAX_STEP` pixels on white down to `MIN_STEP` on black, so seeds slow down as they reach dark areas and steep edges don't fling them.
-- **`MOMENTUM`**: each frame a seed keeps this fraction of its last velocity, so it builds speed down long slopes (0 = none; near 1 = slides and overshoots). Its velocity is the distance it actually moved, so speed lost to collisions and friction is lost from its momentum too.
-- **`MAX_SPEED`**: speed cap, in pixels per frame.
-- **`GRADIENT_SIGMA`**: how much the gradient is blurred (the width of the Gaussian, in pixels). The gradient is computed with a derivative-of-Gaussian kernel, which blurs and takes the slope in one step. Bigger values let seeds sense dark features from farther away (about 3 × sigma) and soften hard edges, but take longer to compute when a picture loads.
+- **`descent.learningRate`**: each frame, a seed steps downhill (toward darker areas) by the gradient times this many pixels.
+- **`descent.maxStep`**, **`descent.minStep`**: the downhill step is capped from `descent.maxStep` pixels where seeds spread out down to `descent.minStep` where they pack tightest, so seeds slow down as they arrive and steep edges don't fling them.
+- **`descent.momentum`**: each frame a seed keeps this fraction of its last velocity, so it builds speed down long slopes (0 = none; near 1 = slides and overshoots). Its velocity is the distance it actually moved, so speed lost to collisions and friction is lost from its momentum too.
+- **`descent.maxSpeed`**: speed cap, in pixels per frame.
+- **`descent.sigma`**: how much the gradient is blurred (the width of the Gaussian, in pixels). The gradient is computed with a derivative-of-Gaussian kernel, which blurs and takes the slope in one step. Bigger values let seeds sense dark features from farther away (about 3 × sigma) and soften hard edges, but take longer to compute when a picture loads.
+
+### Edges
+- **`edges.attractTo`**: what seeds are drawn to. `'dark'`: seeds slide downhill on brightness, toward dark areas. `'edges'`: seeds climb toward edges, where brightness changes quickly (outlines, borders between light and dark). The sketch finds edge strength (the gradient magnitude of brightness, scaled so the strongest edge is 1) and seeds follow the slope of that, blurred by `descent.sigma`. In edges mode, bubble sizes, friction, push resistance, and the step cap all follow edge strength too, so seeds pack tightly on edges and are held there.
+- **`edges.sigma`**: edges mode only. How much the picture is blurred when finding edges, in pixels. Small values keep edges sharp and thin; bigger values merge nearby edges and ignore fine texture.
+- **`edges.color`**: edges mode only. `true` finds edges from **color**, not just brightness, so a boundary between two colors of the same brightness (a red shirt against a green wall) still counts as an edge. The photo's colors are converted to CIELAB, where equal distances look about equally different to the eye, and edge strength is Di Zenzo's multi-channel gradient: each pixel's color is treated as a vector (L\*, a\*, b\*), and edge strength is how fast that vector changes in the direction where it changes fastest. `false` uses brightness only. The test image has no color, so this only makes a difference with photos.
+- **`edges.offset`**, **`edges.repel`**: edges mode only. A Voronoi cell border always runs halfway between two seeds, so seeds sitting *on* an edge make the cells zigzag across it. Instead, seeds are pushed off the edge line itself (a short-range push from the edge-strength map blurred by `edges.offset`, scaled to match the long-range pull, times `edges.repel`) while still being pulled toward edges from far away. The two balance about `edges.offset` pixels to each side, so seeds settle in two rows with the edge between them, and the Voronoi borders between the rows fall along the edge. The tight-packing zone (small bubbles, friction, push resistance) becomes that band beside the edge. `EDGE_REPEL = 0` puts seeds back on the edges. Works best when `edges.sigma` is small (about 2–3), so edges are thin.
 
 ### Display
-- **`DEBUG_AT_START`**: start in debug mode (gray picture plus seed dots). Space toggles it.
-- **`FILL_MODE_AT_START`**: starting cell style. 0 = black lines; 1 = each cell filled with the picture's grey at its seed; 2 = filled with the picture's color (no lines in the fill modes). F cycles through them.
-- **`IMAGE_OPACITY`**: how strongly the picture shows in debug mode (0 = hidden, 255 = full).
-- **`CELL_LINE_COLOR`**: color of the cell lines.
-- **`LINE_TO_BUBBLE`**: cell line thickness as a multiple of `BUBBLE_MIN`, so lines scale with the smallest cells (`CELL_LINE_WEIGHT` is the result in pixels).
-- **`BACKGROUND`**, **`BRICK`**: the linen background and the brick red of the seed dots.
+- **`display.debugAtStart`**: start in debug mode (gray picture plus seed dots). Space toggles it.
+- **`display.fillModeAtStart`**: starting cell style. 0 = black lines; 1 = each cell filled with the picture's grey at its seed; 2 = filled with the picture's color (no lines in the fill modes). F cycles through them.
+- **`display.imageOpacity`**: how strongly the picture shows in debug mode (0 = hidden, 255 = full).
+- **`display.lineColor`**: color of the cell lines.
+- **`display.lineToBubble`**: cell line thickness as a multiple of `bubbles.min`, so lines scale with the smallest cells .
+- **`display.background`**, **`display.seedColor`**: the linen background and the brick red of the seed dots.
 
 ## My changes
 
@@ -75,6 +80,31 @@ All settings are at the top of `sketch.js`. "Brightness" below means the picture
 - Drew the Voronoi diagram: each seed's cell is outlined in black (`CELL_LINE_COLOR`, `CELL_LINE_WEIGHT`), rebuilt every frame from the seeds' current positions using the [d3-delaunay](https://github.com/d3/d3-delaunay) library (ISC license, loaded from jsDelivr). Removed the gradient arrows from the sketch.
 - Cell line thickness is `LINE_TO_BUBBLE` x `BUBBLE_MIN` (3 px at the current settings), so it scales with the smallest cells. Added a debug mode, off by default (`DEBUG_AT_START`): press the space bar to show the test image and the seed dots under the cells, and again to hide them.
 - Added fill modes: press F to cycle the cell style between black lines, cells filled with the picture's grey at their seed, and cells filled with the picture's color (no lines in the fill modes). Color fill is the default (`FILL_MODE_AT_START`).
+- Added an edges mode (`ATTRACT_TO`): seeds can be drawn to edges, where the picture's brightness changes quickly, instead of to dark areas. Edge strength is the gradient magnitude of brightness (found with a small blur, `EDGE_SIGMA`), and seeds climb its blurred slope. It's the new default.
+- In edges mode, bubble sizes now follow edge strength too: small bubbles on strong edges and big ones in flat areas, so seeds (and small cells) gather along outlines. The Poisson start and seed count follow along.
+- Friction, push resistance, and the step cap now follow the same spacing as the bubbles, so in edges mode seeds are held firmly on edges (and in dark mode, in dark areas, as before). Renamed `DARK_PUSH` and `DARK_MOBILITY` to `TIGHT_PUSH` and `TIGHT_MOBILITY`.
+- Edges can now come from color (`EDGE_COLOR`): the photo is converted to CIELAB, and edge strength uses Di Zenzo's multi-channel gradient, so edges between different colors of the same brightness count too. Bubbles, friction, and push resistance follow these color edges.
+- Seeds now settle beside edges instead of on them (`EDGE_OFFSET`, `EDGE_REPEL`): a short-range push off the edge line balances the long-range pull toward edges, so seeds line up in two rows and the Voronoi cell borders between them follow the edge, instead of cells zigzagging across it. The cells are still strict Voronoi polygons.
+- Moved every setting into `settings.js`: one read-only `SETTINGS` object, grouped (picture, seeds, bubbles, gas, collisions, settle, descent, edges, display). Settings were renamed to match, for example `BUBBLE_MIN` is now `SETTINGS.bubbles.min`; earlier bullets above use the old names.
+- Cleaned up the code: `sketch.js` is now just the overview (load, set up, each frame step and draw, keys and dropped photos). The seed simulation moved to a `Simulation` class (`simulation.js`), and all drawing to `render.js`. Removed unused code: the gradient arrows, the pure-random start (`seeds.usePoisson`, `seeds.fill`), and the seed-capacity estimate. The sketch looks and behaves the same.
+
+## Credits
+
+**Libraries** (loaded from the jsDelivr CDN, not copied into this repo):
+- [p5.js](https://p5js.org) v1.11.1, by the Processing Foundation and contributors. LGPL-2.1 license.
+- [d3-delaunay](https://github.com/d3/d3-delaunay) v6.0.4, © 2018–2021 Observable, Inc. ISC license. Computes the Delaunay triangulation and Voronoi diagram. It includes [Delaunator](https://github.com/mapbox/delaunator), © 2021 Mapbox, ISC license.
+
+**Algorithms and papers** (implemented from their descriptions; the code is my own):
+- Poisson disk sampling, adapted for variable spacing: Robert Bridson, "Fast Poisson Disk Sampling in Arbitrary Dimensions," ACM SIGGRAPH 2007 Sketches.
+- Color gradient (structure tensor): Silvano Di Zenzo, "A note on the gradient of a multi-image," *Computer Vision, Graphics, and Image Processing* 33(1), 116–125, 1986.
+- Voronoi diagrams: Georgy Voronoi, 1908.
+
+**Color standards:**
+- Brightness from color uses the Rec. 709 luminance weights (ITU-R Recommendation BT.709).
+- Color edges use CIELAB (CIE 1976 L\*a\*b\*), converted from sRGB (IEC 61966-2-1) through CIE XYZ with the D65 white point.
+
+**From my other work:**
+- The spatial grid (`spatial-grid.js`) is adapted from my [Brownian Snowflakes](../2026-11-brownian-snowflakes/) sketch.
 
 ## License
 

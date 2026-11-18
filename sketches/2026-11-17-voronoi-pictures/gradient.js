@@ -14,12 +14,31 @@
 // with 1D kernels give the same result as the full 2D kernel, much faster.
 //   gx = vertical Gaussian blur of (horizontal derivative kernel)
 //   gy = vertical derivative kernel of (horizontal Gaussian blur)
+//
+// Two modes, for what seeds are drawn to (seeds always move toward -gradient):
+//   'dark':  the gradient of brightness, so seeds slide toward dark areas.
+//   'edges': first find edge strength (how fast the picture changes, with a
+//            small edgeSigma so edges stay sharp, scaled so the strongest edge
+//            is 1), then take the gradient of that with sigma and flip it, so
+//            seeds climb toward strong edges.
+//
+// Edge strength comes from brightness alone, or (if CIELAB channels are
+// given) from color using Di Zenzo's multi-channel gradient: each pixel's
+// color is treated as a vector (L*, a*, b*), and edge strength is how fast
+// that vector changes in the direction where it changes fastest. So an edge
+// between two colors of the same brightness still counts.
 
 class GradientField {
 
   // img: a p5.Image or p5.Graphics with pixelDensity(1)
-  // sigma: width of the Gaussian, in pixels (how much low-pass smoothing)
-  constructor(img, sigma) {
+  // options:
+  //   sigma:      width of the Gaussian, in pixels (how far seeds sense features)
+  //   mode:       'dark' or 'edges' (see above)
+  //   edgeSigma:  edges mode: blur for finding edges
+  //   lab:        edges mode: CIELAB channels { L, a, b } for color edges, or null
+  //   edgeOffset: edges mode: about how far beside an edge seeds settle (0 = on it)
+  //   edgeRepel:  edges mode: how strongly seeds are pushed off the edge line
+  constructor(img, { sigma, mode = 'dark', edgeSigma = 2, lab = null, edgeOffset = 0, edgeRepel = 0 }) {
     this.w = img.width;
     this.h = img.height;
     let n = this.w * this.h;
@@ -31,22 +50,56 @@ class GradientField {
       this.brightness[i] = img.pixels[4 * i] / 255;
     }
 
-    // The two 1D kernels
-    let { blur, slope } = gaussianKernels(sigma);
+    if (mode === 'edges') {
+      // Edge strength: how fast the picture changes at each pixel, from 0 to 1
+      this.edgeStrength = lab
+        ? colorEdgeStrength(lab, this.w, this.h, edgeSigma)
+        : brightnessEdgeStrength(this.brightness, this.w, this.h, edgeSigma);
+      let strongest = 0;
+      for (let i = 0; i < n; i++) strongest = Math.max(strongest, this.edgeStrength[i]);
+      if (strongest > 0) {
+        for (let i = 0; i < n; i++) this.edgeStrength[i] /= strongest;
+      }
 
-    // Horizontal passes: slope across, and blur across
-    let slopeX = convolve(this.brightness, this.w, this.h, slope, true);
-    let blurX = convolve(this.brightness, this.w, this.h, blur, true);
+      // Far pull: slope of edge strength (blurred by sigma), flipped. Seeds move
+      // toward -gradient, so this sends them toward edges from far away.
+      let far = gaussianGradient(this.edgeStrength, this.w, this.h, sigma);
+      this.gx = far.gx.map(v => -v);
+      this.gy = far.gy.map(v => -v);
 
-    // Vertical passes finish the 2D kernels
-    this.gx = convolve(slopeX, this.w, this.h, blur, false);   // slope across, blurred down
-    this.gy = convolve(blurX, this.w, this.h, slope, false);   // blurred across, slope down
+      // Near push: slope of edge strength with a small blur (edgeOffset), NOT
+      // flipped, so it pushes seeds off the edge line itself. Scaled to match
+      // the far pull's strength, times edgeRepel. The two balance about
+      // edgeOffset to each side of an edge, so seeds settle in two rows with
+      // the edge between them, and the Voronoi borders between the rows fall
+      // along the edge.
+      if (edgeOffset > 0 && edgeRepel > 0) {
+        let near = gaussianGradient(this.edgeStrength, this.w, this.h, edgeOffset);
+        let scale = edgeRepel * maxLength(far) / Math.max(maxLength(near), 1e-12);
+        for (let i = 0; i < n; i++) {
+          this.gx[i] += scale * near.gx[i];
+          this.gy[i] += scale * near.gy[i];
+        }
+      }
+    } else {
+      // Slope of brightness: seeds move toward -gradient, so toward dark areas
+      let g = gaussianGradient(this.brightness, this.w, this.h, sigma);
+      this.gx = g.gx;
+      this.gy = g.gy;
+    }
 
-    // The steepest slope anywhere, handy for scaling arrows
-    this.maxMagnitude = 0;
-    for (let i = 0; i < n; i++) {
-      let m = Math.hypot(this.gx[i], this.gy[i]);
-      if (m > this.maxMagnitude) this.maxMagnitude = m;
+    // Spacing: 0 where seeds should pack tightly, 1 where they should spread
+    // out (bubble sizes come from this). Dark mode: brightness, so dark areas
+    // pack tightly. Edges mode: 1 - edge strength, so edges pack tightly; with
+    // an edge offset, the edge strength is blurred by it first, so the whole
+    // band beside each edge (where the seeds settle) packs tightly.
+    if (mode === 'edges') {
+      let band = edgeOffset > 0 ? gaussianBlur(this.edgeStrength, this.w, this.h, edgeOffset) : this.edgeStrength;
+      let strongest = 0;
+      for (let i = 0; i < n; i++) strongest = Math.max(strongest, band[i]);
+      this.spacing = band.map(e => 1 - e / Math.max(strongest, 1e-12));
+    } else {
+      this.spacing = this.brightness;
     }
   }
 
@@ -69,6 +122,19 @@ class GradientField {
                 lerp(this.b(x0, y1), this.b(x1, y1), fx), fy);
   }
 
+  // Spacing at any point (x, y), from 0 (pack tightly) to 1 (spread out),
+  // blending the 4 nearest pixels (bilinear interpolation)
+  spacingAt(x, y) {
+    x = constrain(x, 0, this.w - 1);
+    y = constrain(y, 0, this.h - 1);
+    let x0 = Math.floor(x), y0 = Math.floor(y);
+    let x1 = Math.min(x0 + 1, this.w - 1), y1 = Math.min(y0 + 1, this.h - 1);
+    let fx = x - x0, fy = y - y0;
+    let s = this.spacing, w = this.w;
+    return lerp(lerp(s[y0 * w + x0], s[y0 * w + x1], fx),
+                lerp(s[y1 * w + x0], s[y1 * w + x1], fx), fy);
+  }
+
   // Gradient at any point (x, y), blending the 4 nearest pixels (bilinear
   // interpolation), so it changes smoothly as a seed moves between pixels.
   // Returns a p5.Vector pointing toward brighter areas.
@@ -87,27 +153,75 @@ class GradientField {
     return createVector(gx, gy);
   }
 
-  // Draw arrows on a grid showing -gradient (the downhill direction, toward
-  // darker areas). Longer arrows mean a steeper slope.
-  show(spacing, maxLength) {
-    for (let y = spacing / 2; y < this.h; y += spacing) {
-      for (let x = spacing / 2; x < this.w; x += spacing) {
-        let g = this.gradientAt(x, y);
-        let len = (g.mag() / this.maxMagnitude) * maxLength;
-        if (len < 1) continue;   // too flat to bother drawing
+}
 
-        let dir = g.copy().mult(-1).setMag(len);   // downhill
-        let tipX = x + dir.x, tipY = y + dir.y;
-        line(x, y, tipX, tipY);
+// The longest gradient vector in { gx, gy }
+function maxLength(g) {
+  let longest = 0;
+  for (let i = 0; i < g.gx.length; i++) longest = Math.max(longest, Math.hypot(g.gx[i], g.gy[i]));
+  return longest;
+}
 
-        // Arrowhead
-        let a = dir.heading();
-        let head = min(4, len / 2);
-        line(tipX, tipY, tipX - head * cos(a - 0.5), tipY - head * sin(a - 0.5));
-        line(tipX, tipY, tipX - head * cos(a + 0.5), tipY - head * sin(a + 0.5));
-      }
+// Gaussian blur of a w x h image (a flat array): a horizontal pass and a
+// vertical pass with the bell-curve kernel
+function gaussianBlur(src, w, h, sigma) {
+  let { blur } = gaussianKernels(sigma);
+  return convolve(convolve(src, w, h, blur, true), w, h, blur, false);
+}
+
+// Edge strength from brightness: the length of the brightness gradient
+function brightnessEdgeStrength(brightness, w, h, sigma) {
+  let g = gaussianGradient(brightness, w, h, sigma);
+  let out = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) out[i] = Math.hypot(g.gx[i], g.gy[i]);
+  return out;
+}
+
+// Edge strength from color (Di Zenzo, "A note on the gradient of a
+// multi-image", 1986). Each channel (L*, a*, b*) has its own gradient. They're
+// combined into a 2x2 "structure tensor" per pixel:
+//   [ Jxx  Jxy ]    Jxx = sum of gx^2, Jyy = sum of gy^2, Jxy = sum of gx*gy
+//   [ Jxy  Jyy ]
+// Its largest eigenvalue is the squared rate of change of the color vector in
+// the direction where it changes fastest; its square root is the edge strength.
+// (Unlike adding the channels' slopes, this accounts for channels changing in
+// different directions.)
+function colorEdgeStrength(lab, w, h, sigma) {
+  let n = w * h;
+  let jxx = new Float32Array(n), jyy = new Float32Array(n), jxy = new Float32Array(n);
+  for (let channel of [lab.L, lab.a, lab.b]) {
+    let g = gaussianGradient(channel, w, h, sigma);
+    for (let i = 0; i < n; i++) {
+      jxx[i] += g.gx[i] * g.gx[i];
+      jyy[i] += g.gy[i] * g.gy[i];
+      jxy[i] += g.gx[i] * g.gy[i];
     }
   }
+
+  let out = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    let half = (jxx[i] - jyy[i]) / 2;
+    let biggest = (jxx[i] + jyy[i]) / 2 + Math.sqrt(half * half + jxy[i] * jxy[i]);
+    out[i] = Math.sqrt(biggest);
+  }
+  return out;
+}
+
+// The derivative-of-Gaussian gradient of a w x h image (a flat array):
+// blur with a Gaussian of width sigma and take the slope, in one step.
+// Returns { gx, gy }.
+function gaussianGradient(src, w, h, sigma) {
+  let { blur, slope } = gaussianKernels(sigma);
+
+  // Horizontal passes: slope across, and blur across
+  let slopeX = convolve(src, w, h, slope, true);
+  let blurX = convolve(src, w, h, blur, true);
+
+  // Vertical passes finish the 2D kernels
+  return {
+    gx: convolve(slopeX, w, h, blur, false),   // slope across, blurred down
+    gy: convolve(blurX, w, h, slope, false),   // blurred across, slope down
+  };
 }
 
 // Build the two 1D kernels for a Gaussian of width sigma, reaching out

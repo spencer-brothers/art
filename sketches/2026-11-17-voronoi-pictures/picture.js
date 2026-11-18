@@ -1,6 +1,7 @@
-// Turning a photo (or the test image) into the two pictures the sketch uses:
+// Turning a photo (or the test image) into the pictures the sketch uses:
 //   color: the photo scaled to fit the canvas, for color fill mode
 //   gray:  its brightness, for everything that moves the seeds
+//   lab:   its colors in CIELAB (L*, a*, b* arrays), for color edges
 // Both are canvas-sized, with pixelDensity(1) so one pixel = one canvas unit.
 
 // photo: a p5.Image, or null to use the generated test image
@@ -75,5 +76,39 @@ function preparePicture(photo, autoContrast, clip) {
   }
   grayImg.updatePixels();
 
-  return { color: colorImg, gray: grayImg };
+  return { color: colorImg, gray: grayImg, lab: toLab(colorImg.pixels, n) };
+}
+
+// Convert sRGB pixels to CIELAB, a color space arranged so equal distances
+// look about equally different to the eye. L* is lightness (0 to 100), a* runs
+// green to red, b* runs blue to yellow. Steps: undo sRGB's gamma curve, convert
+// to CIE XYZ, then to L*a*b* relative to the D65 white point (standard daylight).
+// Uses the photo's original colors (auto-contrast only changes the gray picture).
+function toLab(pixels, n) {
+  // sRGB gamma curve undone, for every possible channel value (a lookup table)
+  let linear = new Float32Array(256);
+  for (let v = 0; v < 256; v++) {
+    let c = v / 255;
+    linear[v] = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  }
+
+  // CIELAB's f(t): a cube root, with a straight-line piece near black
+  const D = 6 / 29;
+  let f = t => t > D * D * D ? Math.cbrt(t) : t / (3 * D * D) + 4 / 29;
+
+  let L = new Float32Array(n), A = new Float32Array(n), B = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    let r = linear[pixels[4 * i]], g = linear[pixels[4 * i + 1]], b = linear[pixels[4 * i + 2]];
+
+    // sRGB (linear) to XYZ, divided by the D65 white point
+    let x = (0.4124564 * r + 0.3575761 * g + 0.1804375 * b) / 0.95047;
+    let y = (0.2126729 * r + 0.7151522 * g + 0.0721750 * b) / 1.00000;
+    let z = (0.0193339 * r + 0.1191920 * g + 0.9503041 * b) / 1.08883;
+
+    let fx = f(x), fy = f(y), fz = f(z);
+    L[i] = 116 * fy - 16;
+    A[i] = 500 * (fx - fy);
+    B[i] = 200 * (fy - fz);
+  }
+  return { L, a: A, b: B };
 }
