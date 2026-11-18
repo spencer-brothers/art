@@ -7,7 +7,7 @@ This is a work in progress. A proper gallery is on the way. For now, this page l
 ## Sketches
 
 - [Brownian Snowflakes](sketches/2026-11-brownian-snowflakes/) (November 2026): a honeycomb grid of six-sided snowflakes in sage, moss, brick red, and black on a linen background, each growing as particles wander in and snap into place on a hexagonal grid. The snowflakes go from chunky to detailed left to right, and from fuzzy to spiky top to bottom.
-- [Voronoi Pictures](sketches/2026-11-17-voronoi-pictures/) (November 2026): seeds that drift downhill into the dark parts of a grayscale test image, packing tightly where it's dark and keeping more space between them where it's light, the starting point for a Voronoi diagram that will follow the light and dark of a picture.
+- [Voronoi Pictures](sketches/2026-11-17-voronoi-pictures/) (November 2026): seeds that drift downhill into the dark parts of a grayscale test image, packing tightly where it's dark and spreading out like a gas where it's light, the starting point for a Voronoi diagram that will follow the light and dark of a picture.
 
 <!-- Add a line for each new sketch, for example:
 - [Flow Field](sketches/2026-11-flow-field/) (November 2026): a short description

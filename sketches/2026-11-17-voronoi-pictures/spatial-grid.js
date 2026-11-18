@@ -33,14 +33,16 @@ class SpatialGrid {
     this.cells.get(k).push(seed);
   }
 
-  // Returns every seed in the 9 cells around pos (some may be a bit farther
-  // than cellSize away; the caller checks the exact distance)
-  near(pos) {
+  // Returns every seed in the cells around pos that could be within `radius`
+  // of it (default: one cell, i.e. the 9 cells around pos). Some may be a bit
+  // farther away; the caller checks the exact distance.
+  near(pos, radius = this.cellSize) {
     let col = Math.floor(pos.x / this.cellSize);
     let row = Math.floor(pos.y / this.cellSize);
+    let reach = Math.ceil(radius / this.cellSize);   // how many cells out to look
     let found = [];
-    for (let c = col - 1; c <= col + 1; c++) {
-      for (let r = row - 1; r <= row + 1; r++) {
+    for (let c = col - reach; c <= col + reach; c++) {
+      for (let r = row - reach; r <= row + reach; r++) {
         let cell = this.cells.get(this.key(c, r));
         if (cell) found.push(...cell);
       }
