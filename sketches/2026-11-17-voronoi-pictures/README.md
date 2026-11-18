@@ -1,6 +1,7 @@
 # Voronoi Pictures
 
 - Based on: original code, written from scratch.
+- Library: [d3-delaunay](https://github.com/d3/d3-delaunay) v6.0.4 (ISC license, © Observable, Inc. and Mapbox) computes the Voronoi diagram.
 - Technique (planned): seeds move toward darker parts of a picture by gradient descent on the image's brightness, possibly with a low-pass (smoothed) gradient, so the Voronoi cells are smaller where the picture is darker.
 
 ## My changes
@@ -12,10 +13,15 @@
 - Seeds can't overlap: after each move, any two seeds that are too close are pushed apart until they just touch (a few passes per frame, `COLLISION_PASSES`). A spatial grid (`spatial-grid.js`, adapted from my Brownian Snowflakes sketch) finds nearby seeds quickly. Seeds now pack together in dark areas instead of piling onto one point.
 - Each seed has a personal bubble whose size depends on the brightness where it is: `BUBBLE_MIN` on black up to `BUBBLE_MAX` on white. Two seeds stay at least the sum of their bubble radii apart, so they pack tightly in dark areas and spread out in light ones. The drawn dot size is separate (`DOT_RADIUS`), and `SHOW_BUBBLES` draws the bubbles for tuning.
 - Added friction in dark areas: after moving and colliding, each seed only goes part of the way to its new spot, all the way on white down to `DARK_MOBILITY` (20%) on black. This calms the jitter in dark clusters, where the gradient pulls seeds in and collisions push them back out every frame.
+- Seeds settle down: after `SETTLE_START` frames, friction gradually increases everywhere over `SETTLE_FRAMES` frames until the seeds stop moving and the picture holds still. Once settled, the seeds stop being updated, which saves work.
 - Added momentum: each seed keeps `MOMENTUM` (60%) of its velocity from frame to frame, so it builds speed down long slopes and gets into dark areas quicker, capped at `MAX_SPEED`. Its velocity is the distance it actually moved, so speed lost to collisions and dark-area friction is lost from its momentum too.
 - The number of seeds is now worked out from the picture: each pixel can hold 1 / (2 x sqrt(3) x r²) of a seed, where r is the bubble size at that pixel's brightness (honeycomb packing), scaled by 0.92 for looser natural packing. The sketch uses `FILL` (80%) of that capacity, up to `MAX_SEEDS`, so darker pictures automatically get more seeds and changing the bubble sizes doesn't cause jamming.
 - Added a gas model: seeds gently push on neighbors that are near but not touching, like gas pressure, so they spread out to fill empty space instead of leaving bare white patches. The push reaches `REPULSION_RANGE` x the sum of two seeds' bubbles and fades from `REPULSION_STRENGTH` to zero across that range, so light areas (bigger bubbles) push harder. It's added to the gradient pull each frame, and the two balance out: the gradient squeezes seeds toward dark areas and the pressure resists.
+- Dark seeds resist being pushed: the push a seed receives is scaled by its brightness, from full on white down to `DARK_PUSH` (10%) on black. Seeds on thin dark lines, like the triangle's outline, stay on them instead of being shoved off by light-area neighbors, whose bigger bubbles reach farther.
 - Added a Poisson disk starting layout (`poisson-disk.js`, adapted from Robert Bridson's "Fast Poisson Disk Sampling in Arbitrary Dimensions", 2007): seeds start evenly spaced with no overlapping bubbles, each spaced by its bubble size at that brightness, so they begin close to where they'd settle. New spots are tried in a tight ring around existing seeds, so it packs them as closely as the bubbles allow and fills the whole canvas. It places as many seeds as fit. `USE_POISSON` switches between this and a purely random start.
+- Drew the Voronoi diagram: each seed's cell is outlined in black (`CELL_LINE_COLOR`, `CELL_LINE_WEIGHT`), rebuilt every frame from the seeds' current positions using the [d3-delaunay](https://github.com/d3/d3-delaunay) library (ISC license, loaded from jsDelivr). Removed the gradient arrows from the sketch.
+- Cell line thickness is `LINE_TO_BUBBLE` x `BUBBLE_MIN` (4 px at the current settings), so it scales with the smallest cells. Added a debug mode, off by default (`DEBUG_AT_START`): press the space bar to show the test image and the seed dots under the cells, and again to hide them.
+- Added a fill mode, off by default (`FILL_AT_START`): press F to fill each cell with the test image's grey at its seed, with no cell lines.
 
 ## License
 

@@ -22,8 +22,8 @@ const DOT_RADIUS = 2.5;   // size of the dot drawn for each seed
 // black, up to BUBBLE_MAX on white. Two seeds stay at least the sum of their
 // bubble radii apart, so seeds pack tightly in dark areas and spread out in
 // light ones.
-const BUBBLE_MIN = 3;
-const BUBBLE_MAX = 20;
+const BUBBLE_MIN = 2;
+const BUBBLE_MAX = 9;
 const SHOW_BUBBLES = false;   // draw each bubble as a faint circle (for tuning)
 
 // Gas model: seeds gently push on neighbors that are near but not touching,
@@ -35,6 +35,13 @@ const SHOW_BUBBLES = false;   // draw each bubble as a faint circle (for tuning)
 const REPULSION_RANGE = 2;
 const REPULSION_STRENGTH = 0.3;
 
+// Dark seeds resist being pushed: the push a seed receives is scaled by the
+// brightness where it is, from 1 on white down to DARK_PUSH on black. Seeds
+// that find a dark line stay on it instead of being shoved off by neighbors in
+// the light (whose bigger bubbles reach farther). Light seeds still get pushed
+// away from dark ones as usual.
+const DARK_PUSH = 0.1;
+
 // Collisions: after moving, overlapping seeds are pushed apart this many times
 // per frame (more passes untangle crowded spots better, but cost more)
 const COLLISION_PASSES = 3;
@@ -44,6 +51,14 @@ const COLLISION_PASSES = 3;
 // DARK_MOBILITY of the way. This calms the jitter in dark clusters, where the
 // gradient pulls seeds in and collisions push them back out every frame.
 const DARK_MOBILITY = 0.2;
+
+// Settling: after SETTLE_START frames, friction gradually increases everywhere
+// over SETTLE_FRAMES more frames (with a smooth ease), until the seeds stop
+// moving and the picture holds still. At 60 frames per second, 300 frames is
+// 5 seconds. Once everything has settled, the seeds stop being updated, which
+// saves work (drawing and the key toggles still work).
+const SETTLE_START = 300;
+const SETTLE_FRAMES = 600;
 
 // Gradient descent: each frame, every seed steps downhill (toward darker areas)
 // by gradient x LEARNING_RATE pixels. The step is capped by how bright the spot
@@ -59,23 +74,32 @@ const MIN_STEP = 0.2;
 const MOMENTUM = 0.6;
 const MAX_SPEED = 4;
 
-const IMAGE_OPACITY = 255;  // how strongly the picture shows behind the dots (0 = hidden, 255 = full)
+const IMAGE_OPACITY = 255;  // how strongly the picture shows in debug mode (0 = hidden, 255 = full)
+
+// Debug mode shows the test image and the seed dots. Press the space bar to
+// turn it on and off.
+const DEBUG_AT_START = false;
+
+// Fill mode: each cell is filled with the picture's grey at its seed. Press F
+// to turn it on and off.
+const FILL_AT_START = false;
 
 // Gradient smoothing: width of the Gaussian, in pixels. Bigger = more low-pass,
 // so seeds sense features from farther away (about 3 x this many pixels).
-const GRADIENT_SIGMA = 10;
+const GRADIENT_SIGMA = 50;
 
-// Gradient arrows (for checking the gradient; they point toward darker areas)
-const SHOW_GRADIENT = true;
-const ARROW_SPACING = 40;      // pixels between arrows
-const ARROW_MAX_LENGTH = 30;   // length of the arrow at the steepest slope
+// Voronoi cells: drawn as lines around each seed's cell
+const CELL_LINE_COLOR = '#000000';   // black
+const LINE_TO_BUBBLE = 2;   // line thickness as a fraction of the smallest bubble (BUBBLE_MIN)
+const CELL_LINE_WEIGHT = LINE_TO_BUBBLE * BUBBLE_MIN;   // line thickness in pixels
 
 const BACKGROUND = '#ECE4D4';   // linen
 const BRICK = '#9B3A2C';        // brick red, for the seeds (shows on both black and white)
-const MOSS = '#52603F';         // deep moss, for the arrows
 
 let seeds = [];
 let numSeeds;   // worked out in setup() from the picture
+let debug = DEBUG_AT_START;   // debug mode: show the picture and seeds (toggled with the space bar)
+let fillCells = FILL_AT_START;   // fill mode: cells filled with their seed's grey (toggled with F)
 let grid;       // spatial grid for finding nearby seeds quickly
 let img;        // the picture the seeds will follow (a generated test image for now)
 let gradient;   // the picture's brightness gradient (a GradientField)
@@ -111,17 +135,42 @@ function setup() {
 function draw() {
   background(BACKGROUND);
 
-  // Show the picture faintly behind the seeds
-  tint(255, IMAGE_OPACITY);
-  image(img, 0, 0);
-  noTint();
-
-  if (SHOW_GRADIENT) {
-    stroke(MOSS);
-    strokeWeight(1.5);
-    gradient.show(ARROW_SPACING, ARROW_MAX_LENGTH);
+  // Debug mode: show the picture behind everything
+  if (debug) {
+    tint(255, IMAGE_OPACITY);
+    image(img, 0, 0);
+    noTint();
   }
 
+  // Settling: how much the seeds can still move, from 1 (freely) down to 0
+  // (settled), easing smoothly from SETTLE_START over SETTLE_FRAMES
+  let t = constrain((frameCount - SETTLE_START) / SETTLE_FRAMES, 0, 1);
+  let settle = 1 - t * t * (3 - 2 * t);
+  if (settle > 0) updateSeeds(settle);
+
+  if (SHOW_BUBBLES) {
+    noFill();
+    stroke(BRICK + '40');   // brick red, mostly transparent
+    strokeWeight(1);
+    for (let s of seeds) circle(s.pos.x, s.pos.y, 2 * s.bubble);
+  }
+
+  // Draw the Voronoi cells around the seeds
+  drawVoronoi();
+
+  // Debug mode: draw the seeds on top
+  if (debug) {
+    stroke(BRICK);
+    strokeWeight(2 * DOT_RADIUS);   // dot diameter
+    for (let s of seeds) {
+      s.show();
+    }
+  }
+}
+
+// One frame of movement for every seed. `settle` (1 down to 0) scales how far
+// seeds may move, so they gradually come to rest.
+function updateSeeds(settle) {
   // Remember where every seed started this frame (for the friction below)
   for (let s of seeds) s.prev.set(s.pos);
 
@@ -142,29 +191,50 @@ function draw() {
   // Then push apart any seeds whose bubbles overlap
   resolveCollisions();
 
-  // Friction: darker spots let seeds move only part of the way this frame
+  // Friction: darker spots let seeds move only part of the way this frame,
+  // and everything moves less as the picture settles
   for (let s of seeds) {
-    let mobility = lerp(DARK_MOBILITY, 1, gradient.brightnessAt(s.prev.x, s.prev.y));
+    let mobility = settle * lerp(DARK_MOBILITY, 1, gradient.brightnessAt(s.prev.x, s.prev.y));
     s.pos.set(lerp(s.prev.x, s.pos.x, mobility), lerp(s.prev.y, s.pos.y, mobility));
 
     // Velocity = how far the seed actually moved this frame, so speed lost to
     // collisions and friction is lost from its momentum too
     s.vel.set(s.pos.x - s.prev.x, s.pos.y - s.prev.y);
   }
+}
 
-  if (SHOW_BUBBLES) {
-    noFill();
-    stroke(BRICK + '40');   // brick red, mostly transparent
-    strokeWeight(1);
-    for (let s of seeds) circle(s.pos.x, s.pos.y, 2 * s.bubble);
+// Build the Voronoi diagram from where the seeds are now and draw its edges.
+// Each seed's cell is every point closer to that seed than to any other.
+// d3-delaunay works it out from the seeds' Delaunay triangulation, clipped to
+// the canvas, and render() traces every cell edge (shared edges only once)
+// onto p5's canvas, using the stroke color and weight set just before.
+// In fill mode, each cell is filled with the picture's grey at its seed
+// instead, with no lines.
+function drawVoronoi() {
+  let delaunay = d3.Delaunay.from(seeds, s => s.pos.x, s => s.pos.y);
+  let voronoi = delaunay.voronoi([0, 0, width, height]);
+
+  if (fillCells) {
+    for (let i = 0; i < seeds.length; i++) {
+      let cell = voronoi.cellPolygon(i);   // the cell's corners, as [x, y] pairs
+      if (!cell) continue;
+
+      let grey = round(255 * gradient.brightnessAt(seeds[i].pos.x, seeds[i].pos.y));
+      drawingContext.fillStyle = `rgb(${grey}, ${grey}, ${grey})`;
+      drawingContext.beginPath();
+      drawingContext.moveTo(cell[0][0], cell[0][1]);
+      for (let j = 1; j < cell.length; j++) drawingContext.lineTo(cell[j][0], cell[j][1]);
+      drawingContext.fill();
+    }
+    return;   // fill mode has no cell lines
   }
 
-  // Draw the seeds
-  stroke(BRICK);
-  strokeWeight(2 * DOT_RADIUS);   // dot diameter
-  for (let s of seeds) {
-    s.show();
-  }
+  stroke(CELL_LINE_COLOR);
+  strokeWeight(CELL_LINE_WEIGHT);
+  noFill();
+  drawingContext.beginPath();
+  voronoi.render(drawingContext);
+  drawingContext.stroke();
 }
 
 function updateBubbles() {
@@ -204,6 +274,11 @@ function computeRepulsion() {
       b.push.x += ux * strength;
       b.push.y += uy * strength;
     }
+  }
+
+  // Dark seeds resist: scale each seed's push by the brightness where it is
+  for (let s of seeds) {
+    s.push.mult(lerp(DARK_PUSH, 1, gradient.brightnessAt(s.pos.x, s.pos.y)));
   }
 }
 
@@ -265,5 +340,16 @@ function resolveCollisions() {
 
     // Keep everyone on the canvas
     for (let s of seeds) s.stayOnCanvas();
+  }
+}
+
+// Space bar: turn debug mode (picture + seeds) on and off. F: turn fill mode on and off.
+function keyPressed() {
+  if (key === ' ') {
+    debug = !debug;
+    return false;   // stop the browser from scrolling the page
+  }
+  if (key === 'f' || key === 'F') {
+    fillCells = !fillCells;
   }
 }
