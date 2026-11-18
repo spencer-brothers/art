@@ -6,7 +6,7 @@
 // folder (ignored by git, so it never goes online). If it isn't there, as on
 // the website, it uses the generated test image. Drag any photo onto the
 // canvas to use it instead: it stays in the browser and isn't uploaded.
-const PHOTO_PATH = 'private/photo.jpg';
+const PHOTO_PATH = 'private/photo.jpeg';
 const AUTO_CONTRAST = true;     // stretch the photo's brightness to the full black-to-white range
 const CONTRAST_CLIP = 0.01;     // ignore the darkest and brightest 1% of pixels when stretching
 
