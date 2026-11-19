@@ -41,7 +41,11 @@ class GradientField {
   //   edgeCurve:  edges mode: edge strength becomes 1 - (1 - strength) ^ edgeCurve,
   //               so values above 1 make medium edges pull seeds and get small
   //               bubbles almost like strong ones
-  constructor(img, { sigma, mode = 'dark', edgeSigma = 2, lab = null, edgeOffset = 0, edgeRepel = 0, edgeCurve = 1 }) {
+  //   skin:       how skin-colored each pixel is (0 to 1), or null
+  //   skinEdgeBoost: edges mode: edges count (1 + this x skin) times as much
+  //   skinDensity:   spacing shrinks by (this x skin), so smooth skin gets smaller bubbles
+  constructor(img, { sigma, mode = 'dark', edgeSigma = 2, lab = null, edgeOffset = 0, edgeRepel = 0, edgeCurve = 1,
+                     skin = null, skinEdgeBoost = 0, skinDensity = 0 }) {
     this.w = img.width;
     this.h = img.height;
     let n = this.w * this.h;
@@ -58,6 +62,12 @@ class GradientField {
       this.edgeStrength = lab
         ? colorEdgeStrength(lab, this.w, this.h, edgeSigma)
         : brightnessEdgeStrength(this.brightness, this.w, this.h, edgeSigma);
+
+      // Skin: edges on skin count more, so facial features pull more seeds
+      if (skin && skinEdgeBoost > 0) {
+        for (let i = 0; i < n; i++) this.edgeStrength[i] *= 1 + skinEdgeBoost * skin[i];
+      }
+
       let strongest = 0;
       for (let i = 0; i < n; i++) strongest = Math.max(strongest, this.edgeStrength[i]);
       if (strongest > 0) {
@@ -110,7 +120,12 @@ class GradientField {
       for (let i = 0; i < n; i++) strongest = Math.max(strongest, band[i]);
       this.spacing = band.map(e => 1 - e / Math.max(strongest, 1e-12));   // (the curve is already in edgeStrength)
     } else {
-      this.spacing = this.brightness;
+      this.spacing = Float32Array.from(this.brightness);
+    }
+
+    // Skin: smooth skin gets smaller bubbles too, so faces get more cells
+    if (skin && skinDensity > 0) {
+      for (let i = 0; i < n; i++) this.spacing[i] *= 1 - skinDensity * skin[i];
     }
   }
 

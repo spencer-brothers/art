@@ -11,9 +11,10 @@ const SETTINGS = deepFreeze({
 
   seeds: {
     max: 15000,         // safety limit on seed count
-    startFraction: 0.2, // fraction of seeds placed at the start; the rest are added gradually
+    extra: 0.1,         // seeds beyond what fits with full bubbles (0.1 = 10% extra)
+    startFraction: 0.01,// fraction of seeds placed at the start; the rest are added gradually
     addStart: 0,        // frame when the held-back seeds start being added
-    addEnd: 510,        // frame when all seeds have been added
+    addEnd: 1020,       // frame when all seeds have been added
     dotRadius: 2.5,     // seed dot size in debug mode
   },
 
@@ -35,9 +36,9 @@ const SETTINGS = deepFreeze({
   },
 
   settle: {
-    start: 120,    // frame when the slowdown starts
-    frames: 780,   // frames the slowdown lasts
-    floor: 0.5,    // how much seeds can still move after the slowdown (0 = stop completely, and the sketch stops)
+    start: 240,    // frame when the slowdown starts
+    frames: 1560,  // frames the slowdown lasts
+    floor: 0,      // how much seeds can still move after the slowdown (0 = stop completely, and the sketch stops)
   },
 
   descent: {
@@ -58,22 +59,32 @@ const SETTINGS = deepFreeze({
     curve: 3,           // how much medium edges count (1 = straight line; higher = medium edges pull and pack more)
   },
 
+  skin: {
+    edgeBoost: 2,     // how much more edges count on skin (0 = off, 1 = twice as much)
+    density: 0.6,     // how much smaller bubbles get on smooth skin (0 = off, 1 = down to bubbles.min)
+    hueCenter: 55,    // skin hue, in degrees around CIELAB's a*/b* plane (all skin tones sit near here)
+    hueWidth: 35,     // how far from hueCenter still counts as skin, in degrees
+    blur: 3,          // softens the skin map, in pixels
+    whiteBalance: 0.8,// correct for warm/cool light before finding skin (0 = off, 1 = full)
+    show: true,       // in debug mode, draw seeds on skin red and the rest black
+  },
+
   colorNoise: {
-    amount: 10,     // max lighten/darken of fill colors, out of 255 (0 = off)
+    amount: 15,     // max lighten/darken of fill colors, out of 255 (0 = off)
     scale: 0.01,    // patch size: smaller = bigger, smoother patches
     speed: 0.01,    // how fast the patches drift, per frame
   },
 
   capture: {
-    seconds: 15,          // recording length (G = GIF, V = MP4)
-    gifFps: 30,           // GIF frames per second (the simulation takes 60/fps steps per frame)
+    seconds: 30,          // video length (press V to record)
     mp4Fps: 60,           // MP4 frames per second
-    mp4Bitrate: 6000000,  // MP4 quality, in bits per second (6,000,000 is about 11 MB for 15 seconds)
+    mp4Bitrate: 6000000,  // MP4 quality, in bits per second (6,000,000 is about 22 MB for 30 seconds)
   },
 
   display: {
     debugAtStart: false,     // debug mode (picture + seeds) on start; space toggles
     fillModeAtStart: 2,      // 0 lines, 1 grey fill, 2 color fill; F cycles
+    keepDrawing: true,       // keep drawing after the seeds stop (so the color noise keeps drifting)
     imageOpacity: 255,       // picture opacity in debug mode (0-255)
     lineColor: '#000000',    // cell line color
     lineToBubble: 2,         // line thickness as a multiple of bubbles.min

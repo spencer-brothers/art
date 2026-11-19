@@ -9,9 +9,7 @@ A Voronoi diagram that turns a picture into cells. Seeds are drawn toward the pi
 - **Drag a photo onto the canvas** to use it. It stays in your browser and isn't uploaded.
 - **Space:** debug mode, showing the gray picture and the seed dots.
 - **F:** cycle the cell style: color fill, black lines, grey fill.
-- **V:** record an MP4 video of the whole animation (best for sharing, for example on iMessage: small, smooth, and full color).
-- **G:** record a GIF of the whole animation (bigger files, and GIFs only have 256 colors, so color fills can look grainy).
-- Both restart the current picture, record frame by frame, and download the file when done; move it into the `output/` folder. Recording a big window takes longer, so a smaller browser window helps.
+- **V:** record an MP4 video of the whole animation (small, smooth, full color, and plays inline on iMessage). It restarts the current picture, records frame by frame, and downloads the video when done; move it into the `output/` folder. Recording a big window takes longer, so a smaller browser window helps.
 
 ## Settings
 
@@ -25,6 +23,7 @@ All settings are in `settings.js`, in one read-only `SETTINGS` object grouped li
 ### Seeds
 Seeds start evenly spaced with variable-radius Poisson disk sampling: no overlapping bubbles, each spaced by its bubble size where it lands, so they begin close to where they'll settle. It places as many as fit.
 - **`seeds.max`**: a safety limit, so a very dark picture can't create so many seeds that the sketch slows to a crawl.
+- **`seeds.extra`**: how many seeds beyond what fits with full-size bubbles (0.1 = 10% extra). The starting layout uses bubbles shrunk by 1 / √(1 + extra), which fits that many more, since the number that fits goes with 1 / bubble². Once their bubbles are full size, the extra seeds keep everything gently squeezed: packed a little tighter, with fewer gaps. 0 = exactly as many as fit.
 - **`seeds.startFraction`**, **`seeds.addStart`**, **`seeds.addEnd`**: the full evenly spaced set of seeds is laid out at the start, shuffled, and only `startFraction` of them are put in play. The rest are held back and released at their original spots a few at a time, so the count rises steadily from frame `addStart` to frame `addEnd`. The fast early phase has fewer seeds to push around, and the extra seeds fill in detail once the layout has taken shape. Keep `addEnd` well before the end of the settle so the last seeds have time to settle too. 1 = all seeds from the start.
 - **`seeds.dotRadius`**: size of the seed dots in debug mode.
 
@@ -42,7 +41,7 @@ Seeds start evenly spaced with variable-radius Poisson disk sampling: no overlap
 - **`collisions.tightMobility`**: friction where seeds pack tightest. After moving and colliding, a seed only goes part of the way to its new spot: all the way where seeds spread out, this fraction where they pack tightest. It calms jitter in tight clusters and holds seeds on edges.
 
 ### Settling
-- **`settle.start`**, **`settle.frames`**, **`settle.floor`**: after `settle.start` frames, friction gradually increases everywhere over `settle.frames` more frames (with a smooth ease), until seeds can only move `settle.floor` as much as at the start (0.5 = half). After that it stays there, so seeds keep gently moving and adjusting. With `settle.floor = 0`, seeds stop completely and the sketch stops at frame `settle.start + settle.frames`, a clean end point for recordings; either way, that frame (900 at the current settings, 15 seconds at 60 frames per second) is when the slowdown ends. Timing is counted in frames, so a frame-by-frame recording always plays the same.
+- **`settle.start`**, **`settle.frames`**, **`settle.floor`**: after `settle.start` frames, friction gradually increases everywhere over `settle.frames` more frames (with a smooth ease), until seeds can only move `settle.floor` as much as at the start (0.5 = half). After that it stays there, so seeds keep gently moving and adjusting. With `settle.floor = 0`, seeds stop completely and the sketch stops at frame `settle.start + settle.frames`, a clean end point for recordings; either way, that frame (1800 at the current settings, 30 seconds at 60 frames per second) is when the slowdown ends. Timing is counted in frames, so a frame-by-frame recording always plays the same.
 
 ### Gradient descent
 - **`descent.learningRate`**: each frame, a seed steps downhill (toward darker areas) by the gradient times this many pixels.
@@ -58,17 +57,26 @@ Seeds start evenly spaced with variable-radius Poisson disk sampling: no overlap
 - **`edges.offset`**, **`edges.repel`**: edges mode only. A Voronoi cell border always runs halfway between two seeds, so seeds sitting *on* an edge make the cells zigzag across it. Instead, seeds are pushed off the edge line itself (a short-range push from the edge-strength map blurred by `edges.offset`, scaled to match the long-range pull, times `edges.repel`) while still being pulled toward edges from far away. The two balance about `edges.offset` pixels to each side, so seeds settle in two rows with the edge between them, and the Voronoi borders between the rows fall along the edge. The tight-packing zone (small bubbles, friction, push resistance) becomes that band beside the edge. `EDGE_REPEL = 0` puts seeds back on the edges. Works best when `edges.sigma` is small (about 2–3), so edges are thin.
 - **`edges.curve`**: edges mode only. How much medium edges count, compared with the strongest ones. Edge strength is boosted to 1 − (1 − strength) raised to this power: flat areas stay 0 and the strongest edges stay 1, but medium edges rise toward 1 (at 3, an edge at 30% strength counts as about 66%). Everything in edges mode uses the boosted strength: the pull toward edges, the two-row push, bubble sizes, friction, and push resistance. So medium edges attract seeds, get small cells, and hold their seeds almost like strong edges. 1 = straight line (only strong edges stand out).
 
+### Skin
+Pixels are scored by how skin-colored they are, from 0 to 1, so faces, hands, and other human details get more seeds. Human skin of every tone has a similar hue (between red and yellow); people differ mostly in lightness. So the score looks at hue and chroma (how colorful) in CIELAB, **not** lightness, and light and dark skin count the same. Tested on skin tones from very light to very dark, they all score 0.76–0.99, while grey, blue, green, and neon orange score 0. It's color-based, not face detection, so skin-colored things (wood, sand, warm walls, warm lighting) can count too.
+- **`skin.edgeBoost`**: edges mode only. Edges on skin count (1 + this × skin) times as much, so facial features pull more seeds and get smaller cells. 0 = off; 1 = twice as much.
+- **`skin.density`**: smooth skin gets smaller bubbles, so faces get more cells overall. 0 = off; 1 = all the way down to `bubbles.min`.
+- **`skin.hueCenter`**, **`skin.hueWidth`**: the skin hue (an angle around CIELAB's a\*/b\* plane, about 55°) and how far from it still counts (35°). Pixels also need some color, but not neon (chroma between about 5 and 65), and near-black pixels don't count.
+- **`skin.blur`**: softens the skin map so it's smooth, not speckly.
+- **`skin.whiteBalance`**: corrects for the light's color before looking for skin, so skin is still found under warm light (lamps, sunset) or cool light (shade, overcast, screens). In neutral light, the photo's nearly neutral pixels (greys, whites, darks with little color) average out to equal red, green, and blue; under colored light they don't. The sketch measures that on those pixels and multiplies each color channel to even them out again, the way a camera's white balance works (a "gray world" white balance). Because light multiplies colors, dividing it back out treats dark and light skin alike. (An earlier version shifted colors by a fixed amount instead, which over-corrected very dark skin under warm light; in testing, the multiplying version keeps every skin tone at 0.80 or higher in neutral, warm, and cool light.) Only skin detection is corrected; the colors you see and the color edges are unchanged. 1 = full correction; 0.8 is safer for photos dominated by one color. 0 = off.
+- **`skin.show`**: in debug mode (Space), seeds on skin (skin score 0.5 or more) are drawn red and all other seeds black, to check what counts as skin. When off, all seed dots are red.
+
 ### Color noise
 - **`colorNoise.amount`**, **`colorNoise.scale`**, **`colorNoise.speed`**: in the fill modes, each cell's color is gently lightened or darkened by Perlin noise at its seed's position, drifting over time, so soft patches of light and shade move slowly across the picture. The noise is 3D (two dimensions for position, one for time), so nearby cells change together and nothing flickers. `amount` is the biggest change, out of 255 (0 = off); a smaller `scale` makes bigger, smoother patches; `speed` is how fast they drift. The shift is the same for red, green, and blue, so colors get lighter or darker without changing hue. Line mode isn't affected.
 
 ### Capture
-- **`capture.seconds`**: how long recordings are. Press V for an MP4 or G for a GIF. Either way, the sketch restarts the current picture from the first frame and captures one frame at a time, so the recording plays smoothly however slowly the sketch runs. It records at normal pixel density, so files aren't four times bigger on Retina screens. Browsers can only download files, so recordings land in your downloads folder; move them into `output/` (ignored by git).
-- **`capture.mp4Fps`**, **`capture.mp4Bitrate`**: MP4 frames per second and quality. MP4s are encoded as H.264 with the browser's built-in video encoder (WebCodecs) and packaged with the mp4-muxer library. At 6,000,000 bits per second, 15 seconds is about 11 MB. H.264 needs an even width and height, so an odd-sized canvas loses its last row or column of pixels. Works in Chrome, Edge, and Safari; if the browser can't encode H.264, the console says so.
-- **`capture.gifFps`**: GIF frames per second, using p5's `saveGif()`. The simulation is built for 60 steps per second, so a GIF at 30 fps takes 2 steps per frame and keeps the same timing. GIFs are much bigger than MP4s and only have 256 colors.
+- **`capture.seconds`**: how long videos are. Press V to record. The sketch restarts the current picture from the first frame and captures one frame at a time, so the recording plays smoothly however slowly the sketch runs. It records at normal pixel density, so files aren't four times bigger on Retina screens. Browsers can only download files, so videos land in your downloads folder; move them into `output/` (ignored by git).
+- **`capture.mp4Fps`**, **`capture.mp4Bitrate`**: MP4 frames per second and quality. MP4s are encoded as H.264 with the browser's built-in video encoder (WebCodecs) and packaged with the mp4-muxer library. At 6,000,000 bits per second, 30 seconds is about 22 MB. H.264 needs an even width and height, so an odd-sized canvas loses its last row or column of pixels. Works in Chrome, Edge, and Safari; if the browser can't encode H.264, the console says so.
 
 ### Display
 - **`display.debugAtStart`**: start in debug mode (gray picture plus seed dots). Space toggles it.
 - **`display.fillModeAtStart`**: starting cell style. 0 = black lines; 1 = each cell filled with the picture's grey at its seed; 2 = filled with the picture's color (no lines in the fill modes). F cycles through them.
+- **`display.keepDrawing`**: keep drawing after the seeds have stopped (`settle.floor = 0`), so the color noise keeps drifting while the cells stay still. Only the drawing continues, not the simulation, so it's light. `false` stops the sketch completely once the seeds stop.
 - **`display.imageOpacity`**: how strongly the picture shows in debug mode (0 = hidden, 255 = full).
 - **`display.lineColor`**: color of the cell lines.
 - **`display.lineToBubble`**: cell line thickness as a multiple of `bubbles.min`, so lines scale with the smallest cells .
@@ -101,12 +109,19 @@ Seeds start evenly spaced with variable-radius Poisson disk sampling: no overlap
 - Moved every setting into `settings.js`: one read-only `SETTINGS` object, grouped (picture, seeds, bubbles, gas, collisions, settle, descent, edges, display). Settings were renamed to match, for example `BUBBLE_MIN` is now `SETTINGS.bubbles.min`; earlier bullets above use the old names.
 - Cleaned up the code: `sketch.js` is now just the overview (load, set up, each frame step and draw, keys and dropped photos). The seed simulation moved to a `Simulation` class (`simulation.js`), and all drawing to `render.js`. Removed unused code: the gradient arrows, the pure-random start (`seeds.usePoisson`, `seeds.fill`), and the seed-capacity estimate. The sketch looks and behaves the same.
 - Added `edges.curve`, so medium edges get smaller bubbles too (spacing is (1 − edge strength) raised to the curve's power), not just the strongest edges.
-- Seeds are added gradually: the sketch starts with a fraction of them (`seeds.startFraction`, now 1/5) and releases the rest at their original evenly spaced spots between frames `seeds.addStart` and `seeds.addEnd`.
+- Seeds are added gradually: the sketch starts with a fraction of them (`seeds.startFraction`, now 1/100) and releases the rest at their original evenly spaced spots between frames `seeds.addStart` and `seeds.addEnd`.
 - Seeds no longer have to stop completely: the slowdown now eases down to `settle.floor` (half speed) and stays there, so the cells keep gently moving. The sketch only stops its loop when `settle.floor` is 0.
 - `edges.curve` now also boosts the pull toward edges, not just the bubble sizes, so seeds are drawn to medium edges almost as strongly as to strong ones.
 - Added color noise (`colorNoise`): in the fill modes, cells are gently lightened or darkened by Perlin noise that depends on the seed's position and drifts over time.
 - Added GIF recording: press G to record the whole animation from the start, frame by frame, as a 15-second GIF at 30 fps (`capture`).
 - Added MP4 recording: press V to record the whole animation as a 15-second, 60 fps H.264 video (about 11 MB), frame by frame. Moved the recording code into `capture.js`.
+- Added `seeds.extra`: the sketch now ends up with 10% more seeds than fit with full-size bubbles, so they stay gently squeezed together.
+- Slowed the whole process to about 30 seconds: seeds are added until frame 1020, the slowdown runs from frame 240 to 1800, and recordings are 30 seconds long.
+- Removed GIF recording (G); MP4 (V) is smaller, smoother, and keeps full color.
+- Added skin weighting (`skin`): pixels are scored by how skin-colored they are, using hue and chroma but not lightness, so all skin tones count the same. Edges on skin count more and smooth skin gets smaller bubbles, so faces and hands get more detail. `skin.show` colors the seeds on skin in debug mode.
+- The seeds stop completely again at the end of the slowdown (`settle.floor = 0`), but the sketch keeps drawing (`display.keepDrawing`), so the color noise keeps drifting over the still cells.
+- Skin detection now works under warm and cool light (`skin.whiteBalance`): it estimates the light's color cast from the photo's nearly neutral pixels and corrects for it before scoring skin.
+- Debug mode now shows skin detection on the seed dots: seeds on skin are red and the rest black (replacing a red overlay that the filled cells were covering).
 
 ## Credits
 
@@ -121,9 +136,10 @@ Seeds start evenly spaced with variable-radius Poisson disk sampling: no overlap
 - Voronoi diagrams: Georgy Voronoi, 1908.
 - Perlin noise (through p5.js's `noise()`): Ken Perlin, "An Image Synthesizer," SIGGRAPH 1985.
 
-**Color standards:**
+**Color standards and techniques:**
 - Brightness from color uses the Rec. 709 luminance weights (ITU-R Recommendation BT.709).
 - Color edges use CIELAB (CIE 1976 L\*a\*b\*), converted from sRGB (IEC 61966-2-1) through CIE XYZ with the D65 white point.
+- Skin detection's light correction is a "gray world" white balance (G. Buchsbaum, "A spatial processor model for object colour perception," *Journal of the Franklin Institute* 310(1), 1–26, 1980), applied as per-channel gains in linear RGB, measured on nearly neutral pixels only.
 
 **From my other work:**
 - The spatial grid (`spatial-grid.js`) is adapted from my [Brownian Snowflakes](../2026-11-brownian-snowflakes/) sketch.

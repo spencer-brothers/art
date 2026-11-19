@@ -1,6 +1,6 @@
-// Recording the animation: G saves a GIF, V saves an MP4 video.
-// Both restart the current picture and capture one frame at a time, so the
-// result plays smoothly however slowly the sketch runs. Files download to the
+// Recording the animation: V saves an MP4 video.
+// It restarts the current picture and captures one frame at a time, so the
+// video plays smoothly however slowly the sketch runs. Files download to the
 // browser's download folder (move them into output/).
 
 let recording = false;   // true while a recording is in progress
@@ -18,7 +18,6 @@ function startRecording(fps) {
 
 function stopRecording() {
   stepsPerFrame = 1;
-  frameRate(60);
   pixelDensity(displayDensity());
   loop();
   recording = false;
@@ -27,16 +26,6 @@ function stopRecording() {
 // A file name with the date and time, like voronoi-2026-11-18-1530
 function recordingName() {
   return `voronoi-${year()}-${nf(month(), 2)}-${nf(day(), 2)}-${nf(hour(), 2)}${nf(minute(), 2)}`;
-}
-
-// GIF, using p5's saveGif()
-async function recordGif() {
-  if (recording) return;
-  let { seconds, gifFps } = SETTINGS.capture;
-  startRecording(gifFps);
-  frameRate(gifFps);   // saveGif() records seconds x frame rate frames
-  await saveGif(recordingName(), seconds, { units: 'seconds' });
-  stopRecording();
 }
 
 // MP4 (H.264), using the browser's built-in video encoder (WebCodecs) and the

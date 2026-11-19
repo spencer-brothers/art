@@ -14,10 +14,14 @@ class Simulation {
   }
 
   // Lay out the full set of seeds evenly spaced (Poisson disk sampling), each
-  // spaced by its full bubble size where it lands. Shuffle them, then start
-  // with seeds.startFraction of them and hold the rest back for addSeeds().
+  // spaced by its bubble size where it lands. The number that fits goes with
+  // 1 / bubble^2, so shrinking the layout's bubbles by 1 / sqrt(1 + extra)
+  // fits about seeds.extra more seeds than full-size bubbles allow (they're
+  // squeezed a little once their bubbles are full size). Shuffle them, then
+  // start with seeds.startFraction of them and hold the rest back for addSeeds().
   placeSeeds() {
-    let { min, max } = SETTINGS.bubbles;
+    let shrink = 1 / Math.sqrt(1 + SETTINGS.seeds.extra);
+    let min = SETTINGS.bubbles.min * shrink, max = SETTINGS.bubbles.max * shrink;
     let bubbleAt = (x, y) => lerp(min, max, this.field.spacingAt(x, y));
     let points = poissonDisk(width, height, bubbleAt, min, max).slice(0, SETTINGS.seeds.max);
     let all = shuffle(points.map((p, i) => new Seed(p.x, p.y, i)));   // shuffled, so the held-back ones are spread everywhere

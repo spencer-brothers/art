@@ -27,13 +27,14 @@ function draw() {
   for (let i = 0; i < stepsPerFrame; i++) sim.step();
 
   background(SETTINGS.display.background);
-  if (debug) drawPicture(picture.gray);
+  if (debug) drawPicture(picture.gray);   // (only visible in line mode; fills cover it)
   if (SETTINGS.bubbles.show) drawBubbles(sim.seeds);
   drawCells(sim.seeds, field, picture.color, fillMode, sim.frame);
-  if (debug) drawSeeds(sim.seeds);
+  if (debug) drawSeeds(sim.seeds, SETTINGS.skin.show ? picture.skin : null);   // skin seeds red, the rest black
 
-  // Once everything has settled, stop: a clean end frame for recordings
-  if (sim.settled && isLooping()) {
+  // Once the seeds have stopped, stop drawing too (unless display.keepDrawing,
+  // which keeps redrawing so the color noise keeps drifting)
+  if (sim.settled && !SETTINGS.display.keepDrawing && isLooping()) {
     noLoop();
     console.log(`Settled and stopped at frame ${sim.frame}`);
   }
@@ -68,6 +69,9 @@ function startPicture(newPhoto) {
     edgeOffset: e.offset,
     edgeRepel: e.repel,
     edgeCurve: e.curve,
+    skin: picture.skin,
+    skinEdgeBoost: SETTINGS.skin.edgeBoost,
+    skinDensity: SETTINGS.skin.density,
   });
   sim = new Simulation(field);
   loop();   // restart the animation if it had stopped
@@ -80,12 +84,11 @@ function gotFile(file) {
 }
 
 // Space: debug mode on/off. F: cycle the cell style (lines, grey fill, color fill).
-// G: record a GIF. V: record an MP4 video.
+// V: record an MP4 video.
 function keyPressed() {
   if (recording) return;
   if (key === ' ') debug = !debug;
   else if (key === 'f' || key === 'F') fillMode = (fillMode + 1) % 3;
-  else if (key === 'g' || key === 'G') { recordGif(); return false; }
   else if (key === 'v' || key === 'V') { recordMp4(); return false; }
   else return;
 

@@ -66,11 +66,24 @@ function drawPicture(img) {
   noTint();
 }
 
-// Debug: a dot at every seed
-function drawSeeds(seeds) {
-  stroke(SETTINGS.display.seedColor);
+// Debug: a dot at every seed. If skin is given (a skin map, 0 to 1 per pixel),
+// seeds on skin (score 0.5 or more) are red and the rest black; otherwise all
+// seeds are red.
+function drawSeeds(seeds, skin = null) {
   strokeWeight(2 * SETTINGS.seeds.dotRadius);
-  for (let s of seeds) s.show();
+  let onSkin = s => skin[constrain(round(s.pos.y), 0, height - 1) * width + constrain(round(s.pos.x), 0, width - 1)] >= 0.5;
+
+  // Drawn in two batches (one per color), which is much faster than changing
+  // color for every dot
+  for (let skinSeeds of [false, true]) {
+    if (!skin && !skinSeeds) continue;
+    stroke(skinSeeds ? SETTINGS.display.seedColor : '#000000');
+    beginShape(POINTS);
+    for (let s of seeds) {
+      if (!skin || onSkin(s) === skinSeeds) vertex(s.pos.x, s.pos.y);
+    }
+    endShape();
+  }
 }
 
 // Tuning: each seed's bubble as a faint circle

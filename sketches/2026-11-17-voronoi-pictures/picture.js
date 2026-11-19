@@ -2,6 +2,7 @@
 //   color: the photo scaled to fit the canvas, for color fill mode
 //   gray:  its brightness, for everything that moves the seeds
 //   lab:   its colors in CIELAB (L*, a*, b* arrays), for color edges
+//   skin:  how skin-colored each pixel is, from 0 to 1 (see skinMap)
 // Both are canvas-sized, with pixelDensity(1) so one pixel = one canvas unit.
 
 // photo: a p5.Image, or null to use the generated test image
@@ -76,7 +77,10 @@ function preparePicture(photo, autoContrast, clip) {
   }
   grayImg.updatePixels();
 
-  return { color: colorImg, gray: grayImg, lab: toLab(colorImg.pixels, n) };
+  let lab = toLab(colorImg.pixels, n);
+  let gains = whiteBalanceGains(colorImg.pixels, lab, n, SETTINGS.skin.whiteBalance);
+  let balancedLab = toLab(colorImg.pixels, n, gains);   // only for finding skin
+  return { color: colorImg, gray: grayImg, lab, skin: skinMap(balancedLab, w, h) };
 }
 
 // Convert sRGB pixels to CIELAB, a color space arranged so equal distances
@@ -84,7 +88,9 @@ function preparePicture(photo, autoContrast, clip) {
 // green to red, b* runs blue to yellow. Steps: undo sRGB's gamma curve, convert
 // to CIE XYZ, then to L*a*b* relative to the D65 white point (standard daylight).
 // Uses the photo's original colors (auto-contrast only changes the gray picture).
-function toLab(pixels, n) {
+// gains: optional [r, g, b] multipliers applied to the linear colors first
+// (used to white-balance the colors for skin detection).
+function toLab(pixels, n, gains = [1, 1, 1]) {
   // sRGB gamma curve undone, for every possible channel value (a lookup table)
   let linear = new Float32Array(256);
   for (let v = 0; v < 256; v++) {
@@ -98,7 +104,7 @@ function toLab(pixels, n) {
 
   let L = new Float32Array(n), A = new Float32Array(n), B = new Float32Array(n);
   for (let i = 0; i < n; i++) {
-    let r = linear[pixels[4 * i]], g = linear[pixels[4 * i + 1]], b = linear[pixels[4 * i + 2]];
+    let r = linear[pixels[4 * i]] * gains[0], g = linear[pixels[4 * i + 1]] * gains[1], b = linear[pixels[4 * i + 2]] * gains[2];
 
     // sRGB (linear) to XYZ, divided by the D65 white point
     let x = (0.4124564 * r + 0.3575761 * g + 0.1804375 * b) / 0.95047;
@@ -111,4 +117,62 @@ function toLab(pixels, n) {
     B[i] = 200 * (fy - fz);
   }
   return { L, a: A, b: B };
+}
+
+// How skin-colored each pixel is, from 0 (not skin) to 1 (skin). Human skin of
+// every tone has a similar hue (between red and yellow); people differ mostly
+// in lightness. So this looks at hue and chroma (how colorful) in CIELAB, and
+// not at lightness, so light and dark skin count the same. It multiplies:
+//   hue:    how close the hue angle (direction of a*, b*) is to skin.hueCenter,
+//           fading to 0 at skin.hueWidth away
+//   chroma: some color, but not neon (fades in from 5 to 12, out from 45 to 65)
+//   dark:   near-black pixels don't count (their hue is just noise)
+// then blurs the result by skin.blur so it's soft, not speckly.
+// It's color-based, so skin-colored things (wood, sand, warm walls) count too.
+// It's given white-balanced colors (see whiteBalanceGains), so skin is still
+// found under warm or cool light.
+function skinMap(lab, w, h) {
+  let { hueCenter, hueWidth, blur } = SETTINGS.skin;
+  let n = w * h;
+  let out = new Float32Array(n);
+  let ease = (lo, hi, v) => { let t = constrain((v - lo) / (hi - lo), 0, 1); return t * t * (3 - 2 * t); };
+
+  for (let i = 0; i < n; i++) {
+    let a = lab.a[i], b = lab.b[i];
+    let chroma = Math.hypot(a, b);
+    let hue = Math.atan2(b, a) * 180 / Math.PI;
+    let off = Math.abs(((hue - hueCenter + 540) % 360) - 180);   // angle from hueCenter, 0 to 180
+
+    let hueMatch = Math.max(0, 1 - (off / hueWidth) ** 2);
+    let chromaMatch = ease(5, 12, chroma) * (1 - ease(45, 65, chroma));
+    let notBlack = ease(3, 10, lab.L[i]);
+    out[i] = hueMatch * chromaMatch * notBlack;
+  }
+  return blur > 0 ? gaussianBlur(out, w, h, blur) : out;
+}
+
+// White balance for skin detection ("gray world"). In neutral light, the
+// photo's nearly-neutral pixels (greys, whites, darks with little color)
+// average out to equal red, green, and blue. Under warm light, red is boosted
+// and blue cut; under cool light, the reverse. Measured on those pixels (in
+// linear RGB), each channel gets a multiplier that evens them out again.
+// Light multiplies colors, so dividing it back out works the same for dark and
+// light colors, and every skin tone is treated alike. Pixels with strong color
+// are left out, so a red shirt doesn't count as warm light. `strength` blends
+// from no correction (0) to full (1). Returns [r, g, b] multipliers.
+function whiteBalanceGains(pixels, lab, n, strength) {
+  let linear = v => { let c = v / 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+  let sumR = 0, sumG = 0, sumB = 0, count = 0;
+  for (let i = 0; i < n; i++) {
+    let L = lab.L[i];
+    if (L > 15 && L < 97 && Math.hypot(lab.a[i], lab.b[i]) < 25) {
+      sumR += linear(pixels[4 * i]);
+      sumG += linear(pixels[4 * i + 1]);
+      sumB += linear(pixels[4 * i + 2]);
+      count++;
+    }
+  }
+  if (count < n * 0.02 || sumR === 0 || sumG === 0 || sumB === 0) return [1, 1, 1];   // too few neutral pixels to tell
+  let grey = (sumR + sumG + sumB) / 3;
+  return [sumR, sumG, sumB].map(sum => 1 + strength * (grey / sum - 1));
 }
