@@ -132,23 +132,25 @@ function toLab(pixels, n, gains = [1, 1, 1]) {
 // It's given white-balanced colors (see whiteBalanceGains), so skin is still
 // found under warm or cool light.
 function skinMap(lab, w, h) {
-  let { hueCenter, hueWidth, blur } = SETTINGS.skin;
   let n = w * h;
   let out = new Float32Array(n);
-  let ease = (lo, hi, v) => { let t = constrain((v - lo) / (hi - lo), 0, 1); return t * t * (3 - 2 * t); };
-
-  for (let i = 0; i < n; i++) {
-    let a = lab.a[i], b = lab.b[i];
-    let chroma = Math.hypot(a, b);
-    let hue = Math.atan2(b, a) * 180 / Math.PI;
-    let off = Math.abs(((hue - hueCenter + 540) % 360) - 180);   // angle from hueCenter, 0 to 180
-
-    let hueMatch = Math.max(0, 1 - (off / hueWidth) ** 2);
-    let chromaMatch = ease(5, 12, chroma) * (1 - ease(45, 65, chroma));
-    let notBlack = ease(3, 10, lab.L[i]);
-    out[i] = hueMatch * chromaMatch * notBlack;
-  }
+  for (let i = 0; i < n; i++) out[i] = skinScore(lab.L[i], lab.a[i], lab.b[i]);
+  let blur = SETTINGS.skin.blur;
   return blur > 0 ? gaussianBlur(out, w, h, blur) : out;
+}
+
+// How skin-colored one CIELAB color is, from 0 to 1 (hue x chroma x not-black)
+function skinScore(L, a, b) {
+  let { hueCenter, hueWidth } = SETTINGS.skin;
+  let ease = (lo, hi, v) => { let t = constrain((v - lo) / (hi - lo), 0, 1); return t * t * (3 - 2 * t); };
+  let chroma = Math.hypot(a, b);
+  let hue = Math.atan2(b, a) * 180 / Math.PI;
+  let off = Math.abs(((hue - hueCenter + 540) % 360) - 180);   // angle from hueCenter, 0 to 180
+
+  let hueMatch = Math.max(0, 1 - (off / hueWidth) ** 2);
+  let chromaMatch = ease(5, 12, chroma) * (1 - ease(45, 65, chroma));
+  let notBlack = ease(3, 10, L);
+  return hueMatch * chromaMatch * notBlack;
 }
 
 // White balance for skin detection ("gray world"). In neutral light, the
@@ -158,14 +160,16 @@ function skinMap(lab, w, h) {
 // linear RGB), each channel gets a multiplier that evens them out again.
 // Light multiplies colors, so dividing it back out works the same for dark and
 // light colors, and every skin tone is treated alike. Pixels with strong color
-// are left out, so a red shirt doesn't count as warm light. `strength` blends
+// are left out, so a red shirt doesn't count as warm light, and so are
+// skin-colored pixels: very light skin has little color and would otherwise
+// count as "neutral" and throw the estimate off. `strength` blends
 // from no correction (0) to full (1). Returns [r, g, b] multipliers.
 function whiteBalanceGains(pixels, lab, n, strength) {
   let linear = v => { let c = v / 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
   let sumR = 0, sumG = 0, sumB = 0, count = 0;
   for (let i = 0; i < n; i++) {
-    let L = lab.L[i];
-    if (L > 15 && L < 97 && Math.hypot(lab.a[i], lab.b[i]) < 25) {
+    let L = lab.L[i], a = lab.a[i], b = lab.b[i];
+    if (L > 15 && L < 97 && Math.hypot(a, b) < 25 && skinScore(L, a, b) < 0.3) {
       sumR += linear(pixels[4 * i]);
       sumG += linear(pixels[4 * i + 1]);
       sumB += linear(pixels[4 * i + 2]);
