@@ -1,0 +1,19 @@
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+/* Linen page, with the canvas centered in the window (a photo's canvas can be
+   narrower or shorter than the window) */
+body {
+  background: #ECE4D4;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+}
+
+canvas {
+  display: block;
+}

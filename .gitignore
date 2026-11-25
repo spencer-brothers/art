@@ -14,3 +14,6 @@ CLAUDE.md
 
 # Output from sketches (data files, exports): every sketch's output/ folder is local only
 output/
+
+# Private files for sketches (personal photos etc.): every sketch's private/ folder is local only
+private/
